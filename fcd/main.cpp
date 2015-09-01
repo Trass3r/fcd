@@ -387,7 +387,7 @@ namespace
 		
 		legacy::PassManager outputPhase;
 		outputPhase.add(createX86TargetInfo());
-		//outputPhase.add(createTypeInferencePass());
+		outputPhase.add(createTypeInferencePass());
 		outputPhase.add(createSESELoopPass());
 		outputPhase.add(createEarlyCSEPass());
 		outputPhase.add(backend);

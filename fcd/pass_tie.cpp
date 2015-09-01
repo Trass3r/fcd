@@ -20,13 +20,17 @@ using namespace llvm;
 
 namespace
 {
-	using namespace tie;
+	tie::LateralComparisonInfo empty;
+	tie::IntegralLCI booleanLCI(1);
+	tie::Type anyType(tie::Type::Any, empty);
+	tie::Type booleanType(tie::Type::UnsignedInteger, booleanLCI);
 	
-	const AnyType any;
-	const tie::NoneType none;
-	const IntegralType boolean(IntegralType::Numeric, 1);
-	const CodePointerType basicBlockPointer(CodePointerType::BasicBlock);
-	const CodePointerType functionPointer(CodePointerType::Function);
+	template<typename LCI, typename... LCIArgs>
+	tie::Type& makeType(DumbAllocator& pool, tie::Type::Category category, LCIArgs... args)
+	{
+		auto lci = pool.allocate<LCI>(args...);
+		return *pool.allocate<tie::Type>(category, *lci);
+	}
 	
 	unsigned roundUpToPowerOfTwo(unsigned value)
 	{
@@ -38,15 +42,8 @@ namespace
 	}
 }
 
-#pragma mark - Type Implementation
 namespace tie
 {
-	void TypeBase::dump() const
-	{
-		raw_os_ostream rerr(cerr);
-		print(rerr);
-	}
-	
 	void TypeOrValue::dump() const
 	{
 		raw_os_ostream rerr(cerr);
@@ -66,51 +63,6 @@ namespace tie
 			value->printAsOperand(os);
 		}
 		os << '>';
-	}
-	
-	bool IntegralType::operator<(const IntegralType& that) const
-	{
-		assert(!"implement me");
-	}
-	
-	void IntegralType::print(raw_ostream &os) const
-	{
-		if (bitCount == 1)
-		{
-			os << "bool";
-			return;
-		}
-		
-		switch (tag)
-		{
-			case Register: os << "reg"; break;
-			case Numeric: os << "num"; break;
-			case Signed: os << "int"; break;
-			case Unsigned: os << "uint"; break;
-			case Pointer: os << "anyptr"; break;
-			default:
-				assert(false);
-				os << "unk";
-		}
-		os << bitCount << "_t";
-	}
-	
-	void DataPointerType::print(raw_ostream &os) const
-	{
-		assert(!isa<CodePointerType>(pointee));
-		pointee.print(os);
-		os << '*';
-	}
-	
-	bool CodePointerType::operator<(const CodePointerType &that) const
-	{
-		return tag < that.tag;
-	}
-	
-	void CodePointerType::print(raw_ostream &os) const
-	{
-		os << (tag == BasicBlock ? "basicblock" : "function");
-		os << "_ptr_t";
 	}
 	
 #pragma mark - InferenceContext
@@ -140,7 +92,7 @@ namespace tie
 		}
 		else
 		{
-			assert(isa<GlobalValue>(constant));
+			assert(isa<GlobalValue>(constant) || isa<UndefValue>(constant));
 		}
 	}
 	
@@ -149,8 +101,8 @@ namespace tie
 		constraintKey = constraintKey ? constraintKey : &inst;
 		constrain<SpecializesConstraint>(constraintKey, &getBoolean());
 		
-		const TypeBase* minSize = nullptr;
-		const TypeBase* maxSize = nullptr;
+		const Type* minSize = nullptr;
+		const Type* maxSize = nullptr;
 		switch (inst.getPredicate())
 		{
 			case CmpInst::ICMP_UGE:
@@ -194,7 +146,7 @@ namespace tie
 		unsigned bitCount = inst.getType()->getIntegerBitWidth();
 		
 		constrain<SpecializesConstraint>(inst.getPointerOperand(), &getPointer());
-		constrain<GeneralizesConstraint>(constraintKey, &getReg(bitCount));
+		constrain<GeneralizesConstraint>(constraintKey, &getNum(bitCount));
 		
 		if (auto access = mssa.getMemoryAccess(constraintKey))
 		if (auto def = access->getDefiningAccess())
@@ -474,59 +426,49 @@ namespace tie
 	}
 	
 #pragma mark - InferenceContext getters
-	const IntegralType& InferenceContext::getBoolean()
+	const tie::Type& InferenceContext::getAny()
 	{
-		return boolean;
+		return anyType;
 	}
 	
-	const IntegralType& InferenceContext::getReg(unsigned width)
+	const tie::Type& InferenceContext::getBoolean()
 	{
-		return *pool.allocate<IntegralType>(IntegralType::Register, width);
+		return booleanType;
 	}
 	
-	const IntegralType& InferenceContext::getNum(unsigned width)
+	const tie::Type& InferenceContext::getNum(unsigned width)
 	{
-		return *pool.allocate<IntegralType>(IntegralType::Numeric, width);
+		return makeType<IntegralLCI>(pool, tie::Type::Integral, width);
 	}
 	
-	const IntegralType& InferenceContext::getSint(unsigned width)
+	const tie::Type& InferenceContext::getSint(unsigned width)
 	{
-		return *pool.allocate<IntegralType>(IntegralType::Signed, width);
+		return makeType<IntegralLCI>(pool, tie::Type::SignedInteger, width);
 	}
 	
-	const IntegralType& InferenceContext::getUint(unsigned width)
+	const tie::Type& InferenceContext::getUint(unsigned width)
 	{
-		return *pool.allocate<IntegralType>(IntegralType::Unsigned, width);
+		return makeType<IntegralLCI>(pool, tie::Type::UnsignedInteger, width);
 	}
 	
-	const CodePointerType& InferenceContext::getFunctionPointer()
+	const tie::Type& InferenceContext::getFunctionPointer()
 	{
-		return functionPointer;
+		return makeType<CodePointerLCI>(pool, tie::Type::CodePointer, tie::CodePointerLCI::Function, target.getPointerWidth());
 	}
 	
-	const CodePointerType& InferenceContext::getBasicBlockPointer()
+	const tie::Type& InferenceContext::getBasicBlockPointer()
 	{
-		return basicBlockPointer;
+		return makeType<CodePointerLCI>(pool, tie::Type::CodePointer, tie::CodePointerLCI::Label, target.getPointerWidth());
 	}
 	
-	const AnyType& InferenceContext::getAny()
+	const tie::Type& InferenceContext::getPointer()
 	{
-		return any;
+		return makeType<IntegralLCI>(pool, tie::Type::Pointer, target.getPointerWidth());
 	}
 	
-	const NoneType& InferenceContext::getNone()
+	const tie::Type& InferenceContext::getPointerTo(const tie::Type& pointee)
 	{
-		return none;
-	}
-	
-	const IntegralType& InferenceContext::getPointer()
-	{
-		return *pool.allocate<IntegralType>(IntegralType::Pointer, target.getPointerWidth());
-	}
-	
-	const DataPointerType& InferenceContext::getPointerTo(const tie::TypeBase &pointee)
-	{
-		return *pool.allocate<DataPointerType>(pointee);
+		return makeType<DataPointerLCI>(pool, tie::Type::DataPointer, pointee, target.getPointerWidth());
 	}
 }
 
@@ -559,7 +501,7 @@ bool TypeInference::runOnSCC(CallGraphSCC &scc)
 		if (!func->empty())
 		{
 			MemorySSA mssa(*func);
-			InferenceContext ctx(info, mssa);
+			tie::InferenceContext ctx(info, mssa);
 			ctx.visit(*func);
 			ctx.dump();
 		}

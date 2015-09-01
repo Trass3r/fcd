@@ -58,6 +58,16 @@ bool LateralComparisonInfo::isGeneralizationOf(const LateralComparisonInfo &info
 	return true;
 }
 
+bool LateralComparisonInfo::isEqualTo(const tie::LateralComparisonInfo &info) const
+{
+	return isGeneralizationOf(info) && info.isGeneralizationOf(*this);
+}
+
+void LateralComparisonInfo::print(llvm::raw_ostream &os, Type::Category category) const
+{
+	os << "<any>";
+}
+
 bool IntegralLCI::isGeneralizationOf(const LateralComparisonInfo &info) const
 {
 	if (auto that = dyn_cast<IntegralLCI>(&info))
@@ -65,6 +75,20 @@ bool IntegralLCI::isGeneralizationOf(const LateralComparisonInfo &info) const
 		return width <= that->width;
 	}
 	return false;
+}
+
+void IntegralLCI::print(llvm::raw_ostream &os, Type::Category category) const
+{
+	switch (category)
+	{
+		case Type::Integral: os << '_'; break;
+		case Type::SignedInteger: os << 's'; break;
+		case Type::UnsignedInteger: os << 'u'; break;
+		case Type::Pointer: os << 'p'; break;
+		default: assert(false); break;
+	}
+	
+	os << "int" << getWidth();
 }
 
 bool DataPointerLCI::isGeneralizationOf(const LateralComparisonInfo &info) const
@@ -76,6 +100,12 @@ bool DataPointerLCI::isGeneralizationOf(const LateralComparisonInfo &info) const
 	return false;
 }
 
+void DataPointerLCI::print(llvm::raw_ostream &os, Type::Category category) const
+{
+	type.print(os);
+	os << '*';
+}
+
 bool CodePointerLCI::isGeneralizationOf(const LateralComparisonInfo &info) const
 {
 	if (auto that = dyn_cast<CodePointerLCI>(&info))
@@ -83,6 +113,30 @@ bool CodePointerLCI::isGeneralizationOf(const LateralComparisonInfo &info) const
 		return getPointerType() < that->getPointerType();
 	}
 	return false;
+}
+
+void CodePointerLCI::print(llvm::raw_ostream &os, Type::Category category) const
+{
+	if (getPointerType() == Label)
+	{
+		os << "label";
+	}
+	else
+	{
+		os << "func";
+	}
+	os << "ptr";
+}
+
+#pragma mark - tie::Type
+bool tie::Type::isEqualTo(const tie::Type &that) const
+{
+	if (getCategory() != that.getCategory())
+	{
+		return false;
+	}
+	
+	return getComparisonInfo().isEqualTo(that.getComparisonInfo());
 }
 
 bool tie::Type::isGeneralizationOf(const Type& that) const
@@ -108,4 +162,15 @@ bool tie::Type::isGeneralizationOf(const Type& that) const
 bool tie::Type::isSpecializationOf(const tie::Type &that) const
 {
 	return that.isGeneralizationOf(*this);
+}
+
+void tie::Type::print(llvm::raw_ostream &os) const
+{
+	getComparisonInfo().print(os, getCategory());
+}
+
+void tie::Type::dump() const
+{
+	raw_os_ostream rerr(cerr);
+	print(rerr);
 }

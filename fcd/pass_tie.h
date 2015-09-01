@@ -12,6 +12,7 @@
 #include "dumb_allocator.h"
 #include "llvm_warnings.h"
 #include "pass_targetinfo.h"
+#include "tie_types.h"
 
 SILENCE_LLVM_WARNINGS_BEGIN()
 #include <llvm/Analysis/CallGraphSCCPass.h>
@@ -31,188 +32,16 @@ SILENCE_LLVM_WARNINGS_END()
 
 namespace tie
 {
-	class TypeBase
-	{
-	public:
-		enum Category
-		{
-			Any = 0x00,
-			Integral = 0x10,
-			DataPointer = 0x11,
-			CodePointer = 0x12,
-			None = 0xf0,
-		};
-		
-	private:
-		Category category;
-		
-	protected:
-		TypeBase(Category category) : category(category)
-		{
-		}
-		
-	public:
-		inline Category getCategory() const { return category; }
-		
-		void dump() const;
-		virtual void print(llvm::raw_ostream& os) const = 0;
-		virtual bool operator<(const TypeBase& that) const = 0;
-	};
-	
-	template<typename T>
-	class Type : public TypeBase
-	{
-	protected:
-		Type() : TypeBase(T::category)
-		{
-		}
-		
-		virtual bool operator<(const T& that) const = 0;
-		
-	public:
-		static bool classof(const TypeBase* that)
-		{
-			return that->getCategory() == T::category;
-		}
-		
-		inline bool operator<(const TypeBase& that) const final
-		{
-			unsigned thisCat = this->getCategory();
-			unsigned thatCat = that.getCategory();
-			unsigned thisCatShifted = thisCat >> 4;
-			unsigned thatCatShifted = thatCat >> 4;
-			
-			if (thisCatShifted < thatCatShifted)
-			{
-				return true;
-			}
-			
-			if (thatCatShifted < thisCatShifted || thisCat != thatCat)
-			{
-				return false;
-			}
-			
-			return operator<(llvm::cast<T>(that));
-		}
-	};
-	
-	template<TypeBase::Category Cat>
-	class BoundType : public Type<BoundType<Cat>>
-	{
-	protected:
-		virtual bool operator<(const BoundType<Cat>& that) const override
-		{
-			// BoundType is a singleton instance always equal to itself.
-			return false;
-		}
-		
-	public:
-		static constexpr TypeBase::Category category = Cat;
-		
-		inline BoundType()
-		{
-		}
-		
-		virtual void print(llvm::raw_ostream& os) const override
-		{
-			os << "<unrepresentable>";
-		}
-	};
-	
-	using AnyType = BoundType<TypeBase::Any>;
-	using NoneType = BoundType<TypeBase::None>;
-	
-	class IntegralType : public Type<IntegralType>
-	{
-	public:
-		enum Tag
-		{
-			Register,
-			Numeric,
-			Signed,
-			Unsigned,
-			Pointer,
-		};
-		
-		static constexpr Category category = Integral;
-		
-	private:
-		Tag tag;
-		uint16_t bitCount;
-		
-	protected:
-		virtual bool operator<(const IntegralType& that) const override;
-		
-	public:
-		inline IntegralType(Tag tag, uint16_t bitCount)
-		: tag(tag), bitCount(bitCount)
-		{
-		}
-		
-		virtual void print(llvm::raw_ostream& os) const override;
-	};
-	
-	// This class can't represent polymorphic relations. This may not be a problem given our scope,
-	// but it's something that's worth keeping in mind.
-	class DataPointerType : public Type<DataPointerType>
-	{
-	private:
-		const TypeBase& pointee;
-		
-	protected:
-		virtual bool operator<(const DataPointerType&) const override
-		{
-			// All data pointer types have equal ordering.
-			return false;
-		}
-		
-	public:
-		static constexpr Category category = DataPointer;
-		
-		DataPointerType(const TypeBase& pointee) : pointee(pointee)
-		{
-		}
-		
-		inline const TypeBase& getPointee() const { return pointee; }
-		
-		virtual void print(llvm::raw_ostream& os) const override;
-	};
-	
-	class CodePointerType : public Type<CodePointerType>
-	{
-	public:
-		enum Tag
-		{
-			BasicBlock,
-			Function,
-		};
-		
-		static constexpr Category category = CodePointer;
-		
-	private:
-		Tag tag;
-		
-	protected:
-		virtual bool operator<(const CodePointerType& that) const override;
-		
-	public:
-		CodePointerType(Tag tag) : tag(tag)
-		{
-		}
-		
-		virtual void print(llvm::raw_ostream& os) const override;
-	};
-	
 	struct TypeOrValue
 	{
 		llvm::Value* value;
-		const TypeBase* type;
+		const tie::Type* type;
 		
 		TypeOrValue(llvm::Value* value) : value(value), type(nullptr)
 		{
 		}
 		
-		TypeOrValue(const TypeBase* type) : value(nullptr), type(type)
+		TypeOrValue(const tie::Type* type) : value(nullptr), type(type)
 		{
 		}
 		
@@ -358,17 +187,15 @@ namespace tie
 		void dump() const;
 		void dump(llvm::Value* key) const;
 		
-		static const AnyType& getAny();
-		static const NoneType& getNone();
-		const IntegralType& getBoolean();
-		const IntegralType& getReg(unsigned width = 0);
-		const IntegralType& getNum(unsigned width = 0);
-		const IntegralType& getSint(unsigned width = 0);
-		const IntegralType& getUint(unsigned width = 0);
-		static const CodePointerType& getFunctionPointer();
-		static const CodePointerType& getBasicBlockPointer();
-		const IntegralType& getPointer();
-		const DataPointerType& getPointerTo(const TypeBase& pointee);
+		static const tie::Type& getAny();
+		static const tie::Type& getBoolean();
+		const tie::Type& getNum(unsigned width = 0);
+		const tie::Type& getSint(unsigned width = 0);
+		const tie::Type& getUint(unsigned width = 0);
+		const tie::Type& getFunctionPointer();
+		const tie::Type& getBasicBlockPointer();
+		const tie::Type& getPointer();
+		const tie::Type& getPointerTo(const tie::Type& pointee);
 		
 		void visitICmpInst(llvm::ICmpInst& inst, llvm::Value* constraintKey = nullptr);
 		void visitAllocaInst(llvm::AllocaInst& inst, llvm::Value* constraintKey = nullptr);
