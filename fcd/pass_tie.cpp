@@ -54,15 +54,14 @@ namespace tie
 	{
 		if (value == nullptr)
 		{
-			os << "type<";
 			type->print(os);
 		}
 		else
 		{
-			os << "value<";
+			os << "typeof(";
 			value->printAsOperand(os);
+			os << ')';
 		}
-		os << '>';
 	}
 	
 #pragma mark - InferenceContext
@@ -82,7 +81,7 @@ namespace tie
 			DisjunctionConstraint* disj = pool.allocate<DisjunctionConstraint>(pool);
 			disj->constrain<SpecializesConstraint>(&constant, &getSint(value.getMinSignedBits()));
 			disj->constrain<SpecializesConstraint>(&constant, &getUint(value.getActiveBits()));
-			constraints.insert({&constant, disj});
+			constraints.push_back(disj);
 			constrain<GeneralizesConstraint>(&constant, &getNum(value.getBitWidth()));
 		}
 		else if (auto expression = dyn_cast<ConstantExpr>(&constant))
@@ -248,7 +247,7 @@ namespace tie
 			case3->constrain<SpecializesConstraint>(constraintKey, pointer);
 			disj->constraints.push_back(case3);
 			
-			constraints.insert({constraintKey, disj});
+			constraints.push_back(disj);
 		}
 		// Subtracting pointers results in an integer.
 		else if (opcode == BinaryOperator::Sub)
@@ -288,7 +287,7 @@ namespace tie
 				case3->constrain<SpecializesConstraint>(constraintKey, numeric);
 				disj->constraints.push_back(case3);
 				
-				constraints.insert({constraintKey, disj});
+				constraints.push_back(disj);
 			}
 		}
 		// Special case for negation
@@ -358,8 +357,8 @@ namespace tie
 		
 		disj->constrain<IsEqualConstraint>(constraintKey, casted);
 		
-		constraints.insert({constraintKey, disj});
-		constraints.insert({casted, disj});
+		constraints.push_back(disj);
+		constraints.push_back(disj);
 	}
 	
 	void InferenceContext::visitTerminatorInst(TerminatorInst &inst, Value* constraintKey)
@@ -393,21 +392,11 @@ namespace tie
 	}
 	
 #pragma mark - InferenceContext misc.
-	void InferenceContext::print(raw_ostream& os, ValueToConstraintMap::const_iterator begin, ValueToConstraintMap::const_iterator end) const
+	void InferenceContext::print(raw_ostream& os) const
 	{
-		Value* lastKey = nullptr;
-		for (auto iter = begin; iter != end; ++iter)
+		for (const auto* constraint : constraints)
 		{
-			const auto& pair = *iter;
-			if (lastKey != pair.first)
-			{
-				lastKey = pair.first;
-				os << '\n';
-				lastKey->print(os);
-				os << '\n';
-			}
-			os << '\t';
-			pair.second->print(os);
+			constraint->print(os);
 			os << '\n';
 		}
 	}
@@ -415,14 +404,7 @@ namespace tie
 	void InferenceContext::dump() const
 	{
 		raw_os_ostream rerr(cerr);
-		print(rerr, constraints.begin(), constraints.end());
-	}
-	
-	void InferenceContext::dump(Value* key) const
-	{
-		raw_os_ostream rerr(cerr);
-		auto range = constraints.equal_range(key);
-		print(rerr, range.first, range.second);
+		print(rerr);
 	}
 	
 #pragma mark - InferenceContext getters

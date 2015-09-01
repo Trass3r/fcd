@@ -25,9 +25,9 @@ SILENCE_LLVM_WARNINGS_BEGIN()
 SILENCE_LLVM_WARNINGS_END()
 
 #include <cassert>
+#include <deque>
 #include <functional>
 #include <type_traits>
-#include <unordered_map>
 #include <unordered_set>
 
 namespace tie
@@ -149,43 +149,25 @@ namespace tie
 	
 	class InferenceContext : public llvm::InstVisitor<InferenceContext>
 	{
-		typedef std::unordered_multimap<llvm::Value*, Constraint*> ValueToConstraintMap;
 		const TargetInfo& target;
 		llvm::MemorySSA& mssa;
 		DumbAllocator pool;
 		std::unordered_set<llvm::Value*> visited;
-		ValueToConstraintMap constraints;
+		std::deque<Constraint*> constraints;
 		
-		template<typename Constraint, typename... TArgs>
-		Constraint* constrain(llvm::Value* value, TArgs&&... args)
+		template<typename T, typename... Args>
+		void constrain(Args... args)
 		{
-			auto constraint = pool.allocate<Constraint>(value, args...);
-			addConstraintToValues(constraint, value, args...);
-			return constraint;
+			auto constraint = pool.allocate<T>(args...);
+			constraints.push_back(constraint);
 		}
 		
-		template<typename... TArgs>
-		void addConstraintToValues(Constraint* c, TypeOrValue tv, TArgs&&... values)
-		{
-			addConstraintToValues(c, tv);
-			addConstraintToValues(c, values...);
-		}
-		
-		void addConstraintToValues(Constraint* c, TypeOrValue tv)
-		{
-			if (auto value = tv.value)
-			{
-				constraints.insert({value, c});
-			}
-		}
-		
-		void print(llvm::raw_ostream& os, ValueToConstraintMap::const_iterator begin, ValueToConstraintMap::const_iterator end) const;
+		void print(llvm::raw_ostream& os) const;
 		
 	public:
 		InferenceContext(const TargetInfo& target, llvm::MemorySSA& ssa);
 		
 		void dump() const;
-		void dump(llvm::Value* key) const;
 		
 		static const tie::Type& getAny();
 		static const tie::Type& getBoolean();
