@@ -169,6 +169,9 @@ namespace tie
 		
 		void dump() const;
 		
+		const std::deque<Constraint*> getConstraints() const & { return constraints; }
+		std::deque<Constraint*> getConstraints() && { return std::move(constraints); }
+		
 		static const tie::Type& getAny();
 		static const tie::Type& getBoolean();
 		const tie::Type& getNum(unsigned width = 0);
