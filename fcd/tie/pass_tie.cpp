@@ -22,6 +22,7 @@
 #include "inference_context.h"
 #include "pass_targetinfo.h"
 #include "pass_tie.h"
+#include "solver.h"
 
 #include <cassert>
 #include <iostream>
@@ -61,7 +62,9 @@ bool TypeInference::runOnSCC(CallGraphSCC &scc)
 			MemorySSA mssa(*func);
 			tie::InferenceContext ctx(info, mssa);
 			ctx.visit(*func);
-			ctx.dump();
+			
+			tie::Solver solver(ctx);
+			solver.solve();
 		}
 	}
 	return false;

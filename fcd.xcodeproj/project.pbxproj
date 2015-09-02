@@ -36,6 +36,7 @@
 		DC6D623F1AE1F55A009DDF2F /* libcapstone.a in Frameworks */ = {isa = PBXBuildFile; fileRef = DC6D623E1AE1F55A009DDF2F /* libcapstone.a */; };
 		DC6D62411AE1F591009DDF2F /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = DC6D62401AE1F591009DDF2F /* main.cpp */; };
 		DC82103E1B96628500458F57 /* inference_context.cpp in Sources */ = {isa = PBXBuildFile; fileRef = DC82103C1B96628500458F57 /* inference_context.cpp */; };
+		DC8210411B96894700458F57 /* solver.cpp in Sources */ = {isa = PBXBuildFile; fileRef = DC82103F1B96894700458F57 /* solver.cpp */; };
 		DCA21BEE1B69334800D2CD59 /* pass_tie.cpp in Sources */ = {isa = PBXBuildFile; fileRef = DCA21BEC1B69334800D2CD59 /* pass_tie.cpp */; };
 		DCAFBF9F1AE5607300B8C4BC /* result_function.cpp in Sources */ = {isa = PBXBuildFile; fileRef = DCAFBF9D1AE5607200B8C4BC /* result_function.cpp */; };
 		DCAFBFA51AE5B9EB00B8C4BC /* capstone_wrapper.cpp in Sources */ = {isa = PBXBuildFile; fileRef = DCAFBFA31AE5B9EB00B8C4BC /* capstone_wrapper.cpp */; };
@@ -129,6 +130,8 @@
 		DC6D62421AE1F61E009DDF2F /* x86_defs.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = x86_defs.h; sourceTree = "<group>"; };
 		DC82103C1B96628500458F57 /* inference_context.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = inference_context.cpp; sourceTree = "<group>"; };
 		DC82103D1B96628500458F57 /* inference_context.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = inference_context.h; sourceTree = "<group>"; };
+		DC82103F1B96894700458F57 /* solver.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = solver.cpp; sourceTree = "<group>"; };
+		DC8210401B96894700458F57 /* solver.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = solver.h; sourceTree = "<group>"; };
 		DC89D8551ACDB2A00001C92D /* x86_emulator.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = x86_emulator.cpp; sourceTree = "<group>"; };
 		DC89D8561ACDB2A00001C92D /* x86_emulator.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = x86_emulator.h; sourceTree = "<group>"; };
 		DCA21BEC1B69334800D2CD59 /* pass_tie.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = pass_tie.cpp; sourceTree = "<group>"; };
@@ -298,6 +301,8 @@
 				DCA21BED1B69334800D2CD59 /* pass_tie.h */,
 				DC25F4E71B861BE100C6D942 /* tie_types.cpp */,
 				DC25F4E81B861BE100C6D942 /* tie_types.h */,
+				DC82103F1B96894700458F57 /* solver.cpp */,
+				DC8210401B96894700458F57 /* solver.h */,
 			);
 			name = "Type Inference";
 			path = tie;
@@ -486,6 +491,7 @@
 				DCE5F6511B46CA0B000906F5 /* grapher.cpp in Sources */,
 				DC25F4E91B861BE100C6D942 /* tie_types.cpp in Sources */,
 				DCCA43251B797E900012560E /* pass_flatten.cpp in Sources */,
+				DC8210411B96894700458F57 /* solver.cpp in Sources */,
 				DCB25D781B2FAD37000E4416 /* pass_regptrpromotion.cpp in Sources */,
 				DCD8BF3E1B2B6E6100E2EA3C /* pass_targetinfo.cpp in Sources */,
 				DC425D631B9765DB003CE5D8 /* constraints.cpp in Sources */,

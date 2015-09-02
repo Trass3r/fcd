@@ -32,8 +32,6 @@ using namespace std;
 
 namespace
 {
-	constexpr tie::TypeVariable sentinel = numeric_limits<tie::TypeVariable>::max();
-	
 	tie::LateralComparisonInfo empty;
 	tie::IntegralLCI booleanLCI(1);
 	tie::Type anyType(tie::Type::Any, empty);
@@ -99,8 +97,8 @@ namespace tie
 		constraintKey = constraintKey ? constraintKey : &inst;
 		constrain<SpecializesConstraint>(valueVariable(*constraintKey), getBoolean());
 		
-		TypeVariable minSize = sentinel;
-		TypeVariable maxSize = sentinel;
+		TypeVariable minSize = NoVariable;
+		TypeVariable maxSize = NoVariable;
 		switch (inst.getPredicate())
 		{
 			case CmpInst::ICMP_UGE:
@@ -453,6 +451,16 @@ namespace tie
 		}
 		
 		return nullptr;
+	}
+	
+	TypeVariable InferenceContext::getVariableForValue(const llvm::Value &value) const
+	{
+		auto iter = valueVariables.find(&value);
+		if (iter == valueVariables.end())
+		{
+			return NoVariable;
+		}
+		return iter->second;
 	}
 	
 #pragma mark - InferenceContext getters

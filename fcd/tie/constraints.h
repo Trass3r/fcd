@@ -39,12 +39,11 @@ namespace tie
 	{
 		enum Type : char
 		{
-			Specializes = ':', // adds information ("inherits from", larger bit count)
-			Generalizes = '!', // takes away information (smaller bit count)
-			IsEqual = '=',
-			
-			Conjunction = '&',
-			Disjunction = '|',
+			IsEqual,
+			Specializes, // adds information ("inherits from", larger bit count)
+			Generalizes, // takes away information (smaller bit count)
+			Conjunction,
+			Disjunction,
 		};
 		
 		Type type;
@@ -92,7 +91,15 @@ namespace tie
 				(*iter)->print(os);
 				for (++iter; iter != constraints.end(); ++iter)
 				{
-					os << ") " << (char)ConstraintType << " (";
+					os << ") ";// << (char)ConstraintType << " (";
+					switch (ConstraintType)
+					{
+						case IsEqual: os << '='; break;
+						case Specializes: os << ':'; break;
+						case Generalizes: os << '!'; break;
+						case Conjunction: os << '&'; break;
+						case Disjunction: os << '|'; break;
+					}
 					(*iter)->print(os);
 				}
 				os << ')';

@@ -46,6 +46,10 @@ namespace tie
 {
 	class InferenceContext : public llvm::InstVisitor<InferenceContext>
 	{
+	public:
+		typedef std::deque<Constraint*> ConstraintList;
+		
+	private:
 		union TypeOrValue
 		{
 			// The discriminant is whether an entry for `value` exists in `valueVariables`.
@@ -67,7 +71,7 @@ namespace tie
 		llvm::MemorySSA& mssa;
 		DumbAllocator pool;
 		std::unordered_set<llvm::Value*> visited;
-		std::deque<Constraint*> constraints;
+		ConstraintList constraints;
 		
 		std::deque<TypeOrValue> variables;
 		std::unordered_map<const llvm::Value*, TypeVariable> valueVariables;
@@ -92,13 +96,16 @@ namespace tie
 		}
 		
 	public:
+		static constexpr TypeVariable NoVariable = std::numeric_limits<tie::TypeVariable>::max();
+		
 		InferenceContext(const TargetInfo& target, llvm::MemorySSA& ssa);
 		
 		void print(llvm::raw_ostream& os) const;
 		void dump() const;
 		
-		const std::deque<Constraint*> getConstraints() const { return constraints; }
+		const ConstraintList getConstraints() const { return constraints; }
 		const tie::Type* getBoundType(TypeVariable tv) const;
+		TypeVariable getVariableForValue(const llvm::Value& value) const;
 		
 		void visitICmpInst(llvm::ICmpInst& inst, llvm::Value* constraintKey = nullptr);
 		void visitAllocaInst(llvm::AllocaInst& inst, llvm::Value* constraintKey = nullptr);
