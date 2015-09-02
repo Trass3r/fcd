@@ -289,6 +289,8 @@
 			children = (
 				DC82103C1B96628500458F57 /* inference_context.cpp */,
 				DC82103D1B96628500458F57 /* inference_context.h */,
+				DCA21BEC1B69334800D2CD59 /* pass_tie.cpp */,
+				DCA21BED1B69334800D2CD59 /* pass_tie.h */,
 				DC25F4E71B861BE100C6D942 /* tie_types.cpp */,
 				DC25F4E81B861BE100C6D942 /* tie_types.h */,
 			);
@@ -336,8 +338,6 @@
 				DCE5F6561B48F62F000906F5 /* pass_seseloop.cpp */,
 				DCD8BF3C1B2B6E6100E2EA3C /* pass_targetinfo.cpp */,
 				DCD8BF3D1B2B6E6100E2EA3C /* pass_targetinfo.h */,
-				DCA21BEC1B69334800D2CD59 /* pass_tie.cpp */,
-				DCA21BED1B69334800D2CD59 /* pass_tie.h */,
 				DCAFBFBD1AE6E3BD00B8C4BC /* passes.h */,
 				DCAFBF9D1AE5607200B8C4BC /* result_function.cpp */,
 				DCAFBF9E1AE5607200B8C4BC /* result_function.h */,
