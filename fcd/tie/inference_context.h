@@ -38,26 +38,12 @@ SILENCE_LLVM_WARNINGS_END()
 #include <deque>
 #include <functional>
 #include <type_traits>
+#include <unordered_map>
 #include <unordered_set>
 
 namespace tie
 {
-	struct TypeOrValue
-	{
-		llvm::Value* value;
-		const tie::Type* type;
-		
-		TypeOrValue(llvm::Value* value) : value(value), type(nullptr)
-		{
-		}
-		
-		TypeOrValue(const tie::Type* type) : value(nullptr), type(type)
-		{
-		}
-		
-		void print(llvm::raw_ostream& os) const;
-		void dump() const;
-	};
+	typedef size_t TypeVariable;
 	
 	struct Constraint
 	{
@@ -136,20 +122,16 @@ namespace tie
 			return that->type == ConstraintType;
 		}
 		
-		llvm::Value* left;
-		TypeOrValue right;
+		TypeVariable left, right;
 		
-		BinaryConstraint(llvm::Value* left, TypeOrValue right)
+		BinaryConstraint(TypeVariable left, TypeVariable right)
 		: Constraint(ConstraintType), left(left), right(right)
 		{
 		}
 		
 		virtual void print(llvm::raw_ostream& os) const override
 		{
-			os << "value<";
-			left->printAsOperand(os);
-			os << "> " << (char)ConstraintType << ' ';
-			right.print(os);
+			os << '<' << left << "> " << (char)ConstraintType << " <" << right << '>';
 		}
 	};
 	
@@ -159,11 +141,43 @@ namespace tie
 	
 	class InferenceContext : public llvm::InstVisitor<InferenceContext>
 	{
+		union TypeOrValue
+		{
+			// The discriminant is whether an entry for `value` exists in `valueVariables`.
+			const llvm::Value* value;
+			const tie::Type* type;
+			
+			TypeOrValue(const llvm::Value* value)
+			: value(value)
+			{
+			}
+			
+			TypeOrValue(const tie::Type* type)
+			: type(type)
+			{
+			}
+		};
+		
 		const TargetInfo& target;
 		llvm::MemorySSA& mssa;
 		DumbAllocator pool;
 		std::unordered_set<llvm::Value*> visited;
 		std::deque<Constraint*> constraints;
+		
+		std::deque<TypeOrValue> variables;
+		std::unordered_map<const llvm::Value*, TypeVariable> valueVariables;
+		
+		size_t valueVariable(const llvm::Value& v);
+		
+		TypeVariable getAny();
+		TypeVariable getBoolean();
+		TypeVariable getNum(unsigned width = 0);
+		TypeVariable getSint(unsigned width = 0);
+		TypeVariable getUint(unsigned width = 0);
+		TypeVariable getFunctionPointer();
+		TypeVariable getBasicBlockPointer();
+		TypeVariable getPointer();
+		TypeVariable getPointerTo(const tie::Type& pointee);
 		
 		template<typename T, typename... Args>
 		void constrain(Args... args)
@@ -172,25 +186,14 @@ namespace tie
 			constraints.push_back(constraint);
 		}
 		
-		void print(llvm::raw_ostream& os) const;
-		
 	public:
 		InferenceContext(const TargetInfo& target, llvm::MemorySSA& ssa);
 		
+		void print(llvm::raw_ostream& os) const;
 		void dump() const;
 		
-		const std::deque<Constraint*> getConstraints() const & { return constraints; }
-		std::deque<Constraint*> getConstraints() && { return std::move(constraints); }
-		
-		static const tie::Type& getAny();
-		static const tie::Type& getBoolean();
-		const tie::Type& getNum(unsigned width = 0);
-		const tie::Type& getSint(unsigned width = 0);
-		const tie::Type& getUint(unsigned width = 0);
-		const tie::Type& getFunctionPointer();
-		const tie::Type& getBasicBlockPointer();
-		const tie::Type& getPointer();
-		const tie::Type& getPointerTo(const tie::Type& pointee);
+		const std::deque<Constraint*> getConstraints() const { return constraints; }
+		const tie::Type* getBoundType(TypeVariable tv) const;
 		
 		void visitICmpInst(llvm::ICmpInst& inst, llvm::Value* constraintKey = nullptr);
 		void visitAllocaInst(llvm::AllocaInst& inst, llvm::Value* constraintKey = nullptr);
