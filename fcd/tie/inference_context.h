@@ -22,6 +22,7 @@
 #ifndef inference_context_cpp
 #define inference_context_cpp
 
+#include "constraints.h"
 #include "dumb_allocator.h"
 #include "llvm_warnings.h"
 #include "pass_targetinfo.h"
@@ -43,102 +44,6 @@ SILENCE_LLVM_WARNINGS_END()
 
 namespace tie
 {
-	typedef size_t TypeVariable;
-	
-	struct Constraint
-	{
-		enum Type : char
-		{
-			Specializes = ':', // adds information ("inherits from", larger bit count)
-			Generalizes = '!', // takes away information (smaller bit count)
-			IsEqual = '=',
-			
-			Conjunction = '&',
-			Disjunction = '|',
-		};
-		
-		Type type;
-		
-		Constraint(Type type)
-		: type(type)
-		{
-		}
-		
-		virtual void print(llvm::raw_ostream& os) const = 0;
-		void dump();
-	};
-	
-	template<Constraint::Type ConstraintType>
-	struct CombinatorConstraint : public Constraint
-	{
-		static bool classof(const Constraint* that)
-		{
-			return that->type == ConstraintType;
-		}
-		
-		DumbAllocator& pool;
-		PooledDeque<Constraint*> constraints;
-		
-		CombinatorConstraint(DumbAllocator& pool)
-		: Constraint(ConstraintType), pool(pool), constraints(pool)
-		{
-		}
-		
-		template<typename Constraint, typename... TArgs>
-		Constraint* constrain(TArgs&&... args)
-		{
-			auto constraint = pool.allocate<Constraint>(args...);
-			constraints.push_back(constraint);
-			return constraint;
-		}
-		
-		virtual void print(llvm::raw_ostream& os) const override
-		{
-			os << '(';
-			auto iter = constraints.begin();
-			if (iter != constraints.end())
-			{
-				os << '(';
-				(*iter)->print(os);
-				for (++iter; iter != constraints.end(); ++iter)
-				{
-					os << ") " << (char)ConstraintType << " (";
-					(*iter)->print(os);
-				}
-				os << ')';
-			}
-			os << ')';
-		}
-	};
-	
-	using ConjunctionConstraint = CombinatorConstraint<Constraint::Conjunction>;
-	using DisjunctionConstraint = CombinatorConstraint<Constraint::Disjunction>;
-	
-	template<Constraint::Type ConstraintType>
-	struct BinaryConstraint : public Constraint
-	{
-		static bool classof(const Constraint* that)
-		{
-			return that->type == ConstraintType;
-		}
-		
-		TypeVariable left, right;
-		
-		BinaryConstraint(TypeVariable left, TypeVariable right)
-		: Constraint(ConstraintType), left(left), right(right)
-		{
-		}
-		
-		virtual void print(llvm::raw_ostream& os) const override
-		{
-			os << '<' << left << "> " << (char)ConstraintType << " <" << right << '>';
-		}
-	};
-	
-	using SpecializesConstraint = BinaryConstraint<Constraint::Specializes>;
-	using GeneralizesConstraint = BinaryConstraint<Constraint::Generalizes>;
-	using IsEqualConstraint = BinaryConstraint<Constraint::IsEqual>;
-	
 	class InferenceContext : public llvm::InstVisitor<InferenceContext>
 	{
 		union TypeOrValue

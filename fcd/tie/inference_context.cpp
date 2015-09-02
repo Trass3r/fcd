@@ -45,15 +45,6 @@ namespace
 		auto lci = pool.allocate<LCI>(args...);
 		return *pool.allocate<tie::Type>(category, *lci);
 	}
-	
-	unsigned roundUpToPowerOfTwo(unsigned value)
-	{
-		assert(value != 0);
-		unsigned mask = 0xffffffffu >> __builtin_clz(value);
-		mask >>= 1; // two steps because shifting by 32 at once would be UB
-		unsigned sum = value + mask;
-		return sum & ~(sum >> 1) & ~mask;
-	}
 }
 
 namespace tie
