@@ -49,72 +49,59 @@ namespace tie
 		Constraint* pop();
 	};
 	
+	struct UnifiedReference
+	{
+		TypeVariable tv;
+		
+		explicit UnifiedReference(TypeVariable tv)
+		: tv(tv)
+		{
+		}
+		
+		operator TypeVariable() const { return tv; }
+		bool operator==(const UnifiedReference& that) const { return tv == that.tv; }
+	};
+}
+
+template<>
+struct std::hash<tie::UnifiedReference> : std::hash<tie::TypeVariable>
+{
+	auto operator()(const tie::UnifiedReference& that) const
+	{
+		return std::hash<tie::TypeVariable>::operator()(that.tv);
+	}
+};
+
+namespace tie
+{
 	class SolverState
 	{
-	public:
-		struct UnifiedReference
-		{
-			TypeVariable tv;
-			
-			explicit UnifiedReference(TypeVariable tv)
-			: tv(tv)
-			{
-			}
-			
-			operator TypeVariable() const { return tv; }
-		};
-		
 	private:
 		SolverConstraints constraints;
 		std::unordered_map<TypeVariable, UnifiedReference> unificationMap;
-		std::unordered_map<TypeVariable, TypeVariable> generalizationRelations;
+		std::unordered_map<UnifiedReference, UnifiedReference> generalizations;
 		std::unordered_map<TypeVariable, const tie::Type*> lowerBounds;
 		std::unordered_map<TypeVariable, const tie::Type*> upperBounds;
 		SolverState* parent;
 		
-		SolverState(NOT_NULL(SolverState) parent);
+		SolverState(const SolverConstraints& constraints, NOT_NULL(SolverState) parent);
 		
 		template<typename MapLocator>
 		auto chainFind(MapLocator locator, TypeVariable key)
-			-> typename std::remove_reference<decltype(this->*locator)>::type::mapped_type*
-		{
-			auto current = this;
-			while (current != nullptr)
-			{
-				auto& map = current->*locator;
-				auto iter = map.find(key);
-				if (iter != map.end())
-				{
-					return &iter->second;
-				}
-			}
-			return nullptr;
-		}
+			-> typename std::remove_reference<decltype(this->*locator)>::type::mapped_type*;
 		
 		template<typename MapLocator>
 		auto chainFind(MapLocator locator, TypeVariable key) const
-			-> const typename std::remove_reference<decltype(this->*locator)>::type::mapped_type*
-		{
-			auto current = this;
-			while (current != nullptr)
-			{
-				auto& map = current->*locator;
-				auto iter = map.find(key);
-				if (iter != map.end())
-				{
-					return &iter->second;
-				}
-			}
-			return nullptr;
-		}
+			-> const typename std::remove_reference<decltype(this->*locator)>::type::mapped_type*;
 		
 	public:
 		SolverState(const InferenceContext::ConstraintList& constraints);
+		SolverState(SolverState&&) = default;
 		
-		bool raiseLowerBound(UnifiedReference target, const tie::Type* newLowerBound);
-		bool lowerUpperBound(UnifiedReference target, const tie::Type* newUpperBound);
-		bool bindType(UnifiedReference target, const tie::Type* type);
-		void unifyReferences(UnifiedReference a, TypeVariable b);
+		bool tightenLowerBound(UnifiedReference target, const tie::Type* newLowerBound);
+		bool tightenUpperBound(UnifiedReference target, const tie::Type* newUpperBound);
+		bool addGeneralizationRelationship(UnifiedReference a, UnifiedReference b);
+		bool unifyReferences(UnifiedReference a, TypeVariable b);
 		
 		UnifiedReference getUnifiedReference(TypeVariable variable) const;
 		const tie::Type* getLowerBound(UnifiedReference ref) const;
@@ -122,6 +109,7 @@ namespace tie
 		
 		Constraint* getNextConstraint();
 		
+		SolverState createSubState(const SolverConstraints& constraints);
 		void commit();
 	};
 	
@@ -146,6 +134,41 @@ namespace tie
 		
 		std::pair<const tie::Type*, const tie::Type*> getInferredType(const llvm::Value& value) const;
 	};
+}
+
+#pragma mark - Templates Implementation
+template<typename MapLocator>
+auto tie::SolverState::chainFind(MapLocator locator, TypeVariable key)
+	-> typename std::remove_reference<decltype(this->*locator)>::type::mapped_type*
+{
+	auto current = this;
+	while (current != nullptr)
+	{
+		auto& map = current->*locator;
+		auto iter = map.find(key);
+		if (iter != map.end())
+		{
+			return &iter->second;
+		}
+	}
+	return nullptr;
+}
+
+template<typename MapLocator>
+auto tie::SolverState::chainFind(MapLocator locator, TypeVariable key) const
+	-> const typename std::remove_reference<decltype(this->*locator)>::type::mapped_type*
+{
+	auto current = this;
+	while (current != nullptr)
+	{
+		auto& map = current->*locator;
+		auto iter = map.find(key);
+		if (iter != map.end())
+		{
+			return &iter->second;
+		}
+	}
+	return nullptr;
 }
 
 #endif /* solver_cpp */

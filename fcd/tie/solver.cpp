@@ -35,12 +35,31 @@ namespace
 		}
 	};
 	
-	template<typename TCollection, typename TSort>
-	TCollection sorted(const TCollection& that, TSort&& sortStrategy)
+	template<typename T>
+	struct TemporarySwap
 	{
-		TCollection copy = that;
-		sort(copy.begin(), copy.end(), sortStrategy);
-		return copy;
+		T& target;
+		T storage;
+		
+		TemporarySwap(T& target, T value)
+		: target(target), storage(value)
+		{
+			swap(target, storage);
+		}
+		
+		~TemporarySwap()
+		{
+			swap(target, storage);
+		}
+	};
+	
+	template<typename TOutputCollection, typename TInputCollection, typename TSort>
+	TOutputCollection sorted(const TInputCollection& that, TSort&& sortStrategy)
+	{
+		TOutputCollection result;
+		copy(that.begin(), that.end(), back_inserter(result));
+		sort(result.begin(), result.end(), sortStrategy);
+		return result;
 	}
 	
 	template<typename TMap>
@@ -55,12 +74,6 @@ namespace
 			}
 		}
 	}
-	
-	enum class UnificationResult
-	{
-		KeyNotFound,
-		KeyFoundUnifyTo
-	};
 }
 
 #pragma mark -
@@ -82,8 +95,8 @@ Constraint* SolverConstraints::pop()
 }
 
 #pragma mark - Solver State
-SolverState::SolverState(NOT_NULL(SolverState) parent)
-: constraints(parent->constraints), parent(parent)
+SolverState::SolverState(const SolverConstraints& constraints, NOT_NULL(SolverState) parent)
+: constraints(constraints), parent(parent)
 {
 }
 
@@ -92,12 +105,45 @@ SolverState::SolverState(const InferenceContext::ConstraintList& constraints)
 {
 }
 
-void SolverState::unifyReferences(UnifiedReference a, TypeVariable b)
+bool SolverState::tightenLowerBound(tie::UnifiedReference target, const tie::Type *newLowerBound)
 {
 	llvm_unreachable("implement me");
 }
 
-SolverState::UnifiedReference SolverState::getUnifiedReference(TypeVariable tv) const
+bool SolverState::tightenUpperBound(tie::UnifiedReference target, const tie::Type *newUpperBound)
+{
+	llvm_unreachable("implement me");
+}
+
+bool SolverState::addGeneralizationRelationship(tie::UnifiedReference a, tie::UnifiedReference b)
+{
+	llvm_unreachable("implement me");
+}
+
+bool SolverState::unifyReferences(UnifiedReference a, TypeVariable b)
+{
+	if (const auto** bound = chainFind(&SolverState::lowerBounds, b))
+	{
+		if (!tightenLowerBound(a, *bound))
+		{
+			return false;
+		}
+	}
+	
+	if (const auto** bound = chainFind(&SolverState::upperBounds, b))
+	{
+		if (!tightenUpperBound(a, *bound))
+		{
+			return false;
+		}
+	}
+	
+	auto result = unificationMap.insert({b, a});
+	assert(result.second);
+	return result.second;
+}
+
+UnifiedReference SolverState::getUnifiedReference(TypeVariable tv) const
 {
 	if (const UnifiedReference* ref = chainFind(&SolverState::unificationMap, tv))
 	{
@@ -131,21 +177,28 @@ Constraint* SolverState::getNextConstraint()
 	return constraints.pop();
 }
 
+SolverState SolverState::createSubState(const SolverConstraints& constraints)
+{
+	return SolverState(constraints, this);
+}
+
 void SolverState::commit()
 {
 	assert(parent != nullptr);
 	parent->constraints = constraints;
 	update(parent->unificationMap, unificationMap);
-	update(parent->generalizationRelations, generalizationRelations);
+	update(parent->generalizations, generalizations);
 	update(parent->lowerBounds, lowerBounds);
 	update(parent->upperBounds, upperBounds);
 }
 
 #pragma mark - Solver
 Solver::Solver(const InferenceContext& context)
-: context(context), constraints(sorted(context.getConstraints(), ConstraintOrdering())), rootState(constraints)
+: context(context)
+, constraints(sorted<InferenceContext::ConstraintList>(context.getConstraints(), ConstraintOrdering()))
+, rootState(constraints)
+, currentState(&rootState)
 {
-	currentState = &rootState;
 }
 
 bool Solver::process(const tie::Constraint &constraint)
@@ -166,22 +219,44 @@ bool Solver::process(const tie::Constraint &constraint)
 
 bool Solver::process(const IsEqualConstraint& constraint)
 {
-	llvm_unreachable("implement me");
+	auto key = currentState->getUnifiedReference(constraint.left);
+	return currentState->unifyReferences(key, constraint.right);
 }
 
 bool Solver::process(const SpecializesConstraint& constraint)
 {
-	llvm_unreachable("implement me");
+	return process(GeneralizesConstraint(constraint.right, constraint.left));
 }
 
 bool Solver::process(const GeneralizesConstraint& constraint)
 {
-	llvm_unreachable("implement me");
+	if (auto boundType = context.getBoundType(constraint.left))
+	{
+		assert(context.getBoundType(constraint.right) == nullptr);
+		auto rightKey = currentState->getUnifiedReference(constraint.right);
+		return currentState->tightenUpperBound(rightKey, boundType);
+	}
+	else if (auto boundType = context.getBoundType(constraint.right))
+	{
+		auto leftKey = currentState->getUnifiedReference(constraint.left);
+		return currentState->tightenLowerBound(leftKey, boundType);
+	}
+	else
+	{
+		auto leftKey = currentState->getUnifiedReference(constraint.left);
+		auto rightKey = currentState->getUnifiedReference(constraint.right);
+		return currentState->addGeneralizationRelationship(leftKey, rightKey);
+	}
 }
 
 bool Solver::process(const ConjunctionConstraint& constraint)
 {
-	llvm_unreachable("implement me");
+	auto constraintList = sorted<InferenceContext::ConstraintList>(constraint.constraints, ConstraintOrdering());
+	SolverConstraints constraints(constraintList);
+	SolverState child = currentState->createSubState(constraints);
+	
+	TemporarySwap<SolverState*> swap(currentState, &child);
+	return solve();
 }
 
 bool Solver::process(const DisjunctionConstraint& constraint)
