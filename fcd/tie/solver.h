@@ -56,7 +56,6 @@ namespace tie
 		{
 			TypeVariable tv;
 			
-			UnifiedReference() = default;
 			explicit UnifiedReference(TypeVariable tv)
 			: tv(tv)
 			{

@@ -44,11 +44,15 @@ namespace
 	}
 	
 	template<typename TMap>
-	void copy(TMap& into, const TMap& reference)
+	void update(TMap& into, const TMap& reference)
 	{
 		for (const auto& pair : reference)
 		{
-			into[pair.first] = pair.second;
+			auto insertResult = into.insert(pair);
+			if (!insertResult.second)
+			{
+				insertResult.first->second = pair.second;
+			}
 		}
 	}
 	
@@ -131,10 +135,10 @@ void SolverState::commit()
 {
 	assert(parent != nullptr);
 	parent->constraints = constraints;
-	copy(parent->unificationMap, unificationMap);
-	copy(parent->generalizationRelations, generalizationRelations);
-	copy(parent->lowerBounds, lowerBounds);
-	copy(parent->upperBounds, upperBounds);
+	update(parent->unificationMap, unificationMap);
+	update(parent->generalizationRelations, generalizationRelations);
+	update(parent->lowerBounds, lowerBounds);
+	update(parent->upperBounds, upperBounds);
 }
 
 #pragma mark - Solver

@@ -299,10 +299,10 @@
 				DC82103D1B96628500458F57 /* inference_context.h */,
 				DCA21BEC1B69334800D2CD59 /* pass_tie.cpp */,
 				DCA21BED1B69334800D2CD59 /* pass_tie.h */,
-				DC25F4E71B861BE100C6D942 /* tie_types.cpp */,
-				DC25F4E81B861BE100C6D942 /* tie_types.h */,
 				DC82103F1B96894700458F57 /* solver.cpp */,
 				DC8210401B96894700458F57 /* solver.h */,
+				DC25F4E71B861BE100C6D942 /* tie_types.cpp */,
+				DC25F4E81B861BE100C6D942 /* tie_types.h */,
 			);
 			name = "Type Inference";
 			path = tie;
