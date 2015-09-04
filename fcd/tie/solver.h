@@ -80,8 +80,8 @@ namespace tie
 		SolverConstraints constraints;
 		std::unordered_map<TypeVariable, UnifiedReference> unificationMap;
 		std::deque<std::pair<UnifiedReference, UnifiedReference>> generalizations;
-		std::unordered_map<TypeVariable, const tie::Type*> mostGeneralBounds;
-		std::unordered_map<TypeVariable, const tie::Type*> mostSpecificBounds;
+		std::unordered_map<TypeVariable, NOT_NULL(const tie::Type)> mostGeneralBounds;
+		std::unordered_map<TypeVariable, NOT_NULL(const tie::Type)> mostSpecificBounds;
 		SolverState* parent;
 		
 		SolverState(const SolverConstraints& constraints, NOT_NULL(SolverState) parent);
@@ -98,8 +98,8 @@ namespace tie
 		SolverState(const InferenceContext::ConstraintList& constraints);
 		SolverState(SolverState&&) = default;
 		
-		bool tightenGeneralBound(UnifiedReference target, const tie::Type* newLowerBound);
-		bool tightenSpecificBound(UnifiedReference target, const tie::Type* newUpperBound);
+		bool tightenGeneralBound(UnifiedReference target, const tie::Type& newLowerBound);
+		bool tightenSpecificBound(UnifiedReference target, const tie::Type& newUpperBound);
 		bool addGeneralizationRelationship(UnifiedReference a, UnifiedReference b);
 		bool unifyReferences(UnifiedReference a, TypeVariable b);
 		

@@ -24,6 +24,7 @@
 
 #include "dumb_allocator.h"
 #include "llvm_warnings.h"
+#include "not_null.h"
 #include "tie_types.h"
 
 SILENCE_LLVM_WARNINGS_BEGIN()
@@ -66,7 +67,7 @@ namespace tie
 		}
 		
 		DumbAllocator& pool;
-		PooledDeque<Constraint*> constraints;
+		PooledDeque<NOT_NULL(Constraint)> constraints;
 		
 		CombinatorConstraint(DumbAllocator& pool)
 		: Constraint(ConstraintType), pool(pool), constraints(pool)
@@ -74,11 +75,11 @@ namespace tie
 		}
 		
 		template<typename Constraint, typename... TArgs>
-		Constraint* constrain(TArgs&&... args)
+		Constraint& constrain(TArgs&&... args)
 		{
 			auto constraint = pool.allocate<Constraint>(args...);
 			constraints.push_back(constraint);
-			return constraint;
+			return *constraint;
 		}
 		
 		virtual void print(llvm::raw_ostream& os) const override
