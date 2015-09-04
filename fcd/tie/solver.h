@@ -33,22 +33,6 @@
 
 namespace tie
 {
-	class SolverConstraints
-	{
-		InferenceContext::ConstraintList::const_iterator current;
-		std::deque<Constraint*>::const_iterator end;
-		
-	public:
-		explicit SolverConstraints(const InferenceContext::ConstraintList& constraints);
-		SolverConstraints(const SolverConstraints&) = default;
-		SolverConstraints(SolverConstraints&&) = default;
-		
-		SolverConstraints& operator=(const SolverConstraints&) = default;
-		SolverConstraints& operator=(SolverConstraints&&) = default;
-		
-		Constraint* pop();
-	};
-	
 	struct UnifiedReference
 	{
 		TypeVariable tv;
@@ -74,14 +58,30 @@ struct std::hash<tie::UnifiedReference> : std::hash<tie::TypeVariable>
 
 namespace tie
 {
+	class SolverConstraints
+	{
+		InferenceContext::ConstraintList::const_iterator current;
+		std::deque<Constraint*>::const_iterator end;
+		
+	public:
+		explicit SolverConstraints(const InferenceContext::ConstraintList& constraints);
+		SolverConstraints(const SolverConstraints&) = default;
+		SolverConstraints(SolverConstraints&&) = default;
+		
+		SolverConstraints& operator=(const SolverConstraints&) = default;
+		SolverConstraints& operator=(SolverConstraints&&) = default;
+		
+		Constraint* pop();
+	};
+	
 	class SolverState
 	{
 	private:
 		SolverConstraints constraints;
 		std::unordered_map<TypeVariable, UnifiedReference> unificationMap;
-		std::unordered_map<UnifiedReference, UnifiedReference> generalizations;
-		std::unordered_map<TypeVariable, const tie::Type*> lowerBounds;
-		std::unordered_map<TypeVariable, const tie::Type*> upperBounds;
+		std::deque<std::pair<UnifiedReference, UnifiedReference>> generalizations;
+		std::unordered_map<TypeVariable, const tie::Type*> mostGeneralBounds;
+		std::unordered_map<TypeVariable, const tie::Type*> mostSpecificBounds;
 		SolverState* parent;
 		
 		SolverState(const SolverConstraints& constraints, NOT_NULL(SolverState) parent);
@@ -98,14 +98,14 @@ namespace tie
 		SolverState(const InferenceContext::ConstraintList& constraints);
 		SolverState(SolverState&&) = default;
 		
-		bool tightenLowerBound(UnifiedReference target, const tie::Type* newLowerBound);
-		bool tightenUpperBound(UnifiedReference target, const tie::Type* newUpperBound);
+		bool tightenGeneralBound(UnifiedReference target, const tie::Type* newLowerBound);
+		bool tightenSpecificBound(UnifiedReference target, const tie::Type* newUpperBound);
 		bool addGeneralizationRelationship(UnifiedReference a, UnifiedReference b);
 		bool unifyReferences(UnifiedReference a, TypeVariable b);
 		
 		UnifiedReference getUnifiedReference(TypeVariable variable) const;
-		const tie::Type* getLowerBound(UnifiedReference ref) const;
-		const tie::Type* getUpperBound(UnifiedReference ref) const;
+		const tie::Type* getGeneralBound(UnifiedReference ref) const;
+		const tie::Type* getSpecificBound(UnifiedReference ref) const;
 		
 		Constraint* getNextConstraint();
 		
@@ -150,6 +150,7 @@ auto tie::SolverState::chainFind(MapLocator locator, TypeVariable key)
 		{
 			return &iter->second;
 		}
+		current = current->parent;
 	}
 	return nullptr;
 }
@@ -167,6 +168,7 @@ auto tie::SolverState::chainFind(MapLocator locator, TypeVariable key) const
 		{
 			return &iter->second;
 		}
+		current = current->parent;
 	}
 	return nullptr;
 }
