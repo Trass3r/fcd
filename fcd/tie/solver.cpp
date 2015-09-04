@@ -96,7 +96,7 @@ Constraint* SolverConstraints::pop()
 
 #pragma mark - Solver State
 SolverState::SolverState(const SolverConstraints& constraints, NOT_NULL(SolverState) parent)
-: constraints(constraints), generalizations(parent->generalizations), parent(parent)
+: constraints(constraints), specializations(parent->specializations), parent(parent)
 {
 }
 
@@ -105,21 +105,21 @@ SolverState::SolverState(const InferenceContext::ConstraintList& constraints)
 {
 }
 
-bool SolverState::tightenGeneralBound(tie::UnifiedReference target, const tie::Type& newLowerBound)
+bool SolverState::tightenOneBound(tie::UnifiedReference target, const tie::Type &newBound, TypeOrdering ordering, BoundMapSelector bound, BoundMapSelector opposite)
 {
 	auto typeVar = static_cast<TypeVariable>(target);
-	if (NOT_NULL(const tie::Type)* mostSpecific = chainFind(&SolverState::mostSpecificBounds, typeVar))
+	if (NOT_NULL(const tie::Type)* mostSpecific = chainFind(bound, typeVar))
 	{
-		if ((*mostSpecific)->isGeneralizationOf(newLowerBound))
+		if (((*mostSpecific)->*ordering)(newBound))
 		{
 			return false;
 		}
 	}
 	
 	bool updateBound = false;
-	if (NOT_NULL(const tie::Type)* mostGeneric = chainFind(&SolverState::mostGeneralBounds, typeVar))
+	if (NOT_NULL(const tie::Type)* mostGeneric = chainFind(opposite, typeVar))
 	{
-		updateBound = (*mostGeneric)->isGeneralizationOf(newLowerBound);
+		updateBound = ((*mostGeneric)->*ordering)(newBound);
 	}
 	else
 	{
@@ -128,50 +128,88 @@ bool SolverState::tightenGeneralBound(tie::UnifiedReference target, const tie::T
 	
 	if (updateBound)
 	{
-		auto result = mostGeneralBounds.insert({typeVar, &newLowerBound});
+		auto result = (this->*bound).insert({typeVar, &newBound});
 		if (!result.second)
 		{
-			result.first->second = &newLowerBound;
+			result.first->second = &newBound;
+		}
+		
+		auto iter = (this->*opposite).find(typeVar);
+		if (iter != (this->*opposite).end() && iter->second == &newBound)
+		{
+			boundTypes.insert({target, &newBound});
 		}
 	}
 	return true;
 }
 
-bool SolverState::tightenSpecificBound(tie::UnifiedReference target, const tie::Type& newUpperBound)
+bool SolverState::tightenOneGeneralBound(tie::UnifiedReference target, const tie::Type& newLowerBound)
 {
-	auto typeVar = static_cast<TypeVariable>(target);
-	if (NOT_NULL(const tie::Type)* mostGeneric = chainFind(&SolverState::mostGeneralBounds, typeVar))
-	{
-		if ((*mostGeneric)->isSpecializationOf(newUpperBound))
-		{
-			return false;
-		}
-	}
-	
-	bool updateBound = false;
-	if (NOT_NULL(const tie::Type)* mostSpecific = chainFind(&SolverState::mostSpecificBounds, typeVar))
-	{
-		updateBound = (*mostSpecific)->isSpecializationOf(newUpperBound);
-	}
-	else
-	{
-		updateBound = true;
-	}
-	
-	if (updateBound)
-	{
-		auto result = mostSpecificBounds.insert({typeVar, &newUpperBound});
-		if (!result.second)
-		{
-			result.first->second = &newUpperBound;
-		}
-	}
-	return true;
+	return tightenOneBound(target, newLowerBound, &Type::isGeneralizationOf, &SolverState::mostSpecificBounds, &SolverState::mostGeneralBounds);
 }
 
-bool SolverState::addGeneralizationRelationship(tie::UnifiedReference a, tie::UnifiedReference b)
+bool SolverState::tightenOneSpecificBound(tie::UnifiedReference target, const tie::Type& newUpperBound)
 {
-	llvm_unreachable("implement me");
+	return tightenOneBound(target, newUpperBound, &Type::isSpecializationOf, &SolverState::mostGeneralBounds, &SolverState::mostSpecificBounds);
+}
+
+bool SolverState::tightenGeneralBound(tie::UnifiedReference target, const tie::Type &newLowerBound)
+{
+	bool result = tightenOneGeneralBound(target, newLowerBound);
+	if (result)
+	{
+		for (const auto& pair : specializations)
+		{
+			if (pair.second == target && !tightenOneGeneralBound(pair.first, newLowerBound))
+			{
+				return false;
+			}
+		}
+	}
+	return result;
+}
+
+bool SolverState::tightenSpecificBound(tie::UnifiedReference target, const tie::Type &newUpperBound)
+{
+	bool result = tightenOneSpecificBound(target, newUpperBound);
+	if (result)
+	{
+		for (const auto& pair : specializations)
+		{
+			if (pair.first == target && !tightenOneSpecificBound(pair.second, newUpperBound))
+			{
+				return false;
+			}
+		}
+	}
+	return result;
+}
+
+bool SolverState::addSpecializationRelationship(UnifiedReference subtype, UnifiedReference inheritsFrom)
+{
+	auto inserted = make_pair(subtype, inheritsFrom);
+	auto result = specializations.insert(inserted);
+	if (result.second)
+	{
+		if (NOT_NULL(const Type)* boundType = chainFind(&SolverState::boundTypes, subtype))
+		{
+			tightenSpecificBound(inheritsFrom, **boundType);
+		}
+		else if (NOT_NULL(const Type)* boundType = chainFind(&SolverState::boundTypes, inheritsFrom))
+		{
+			tightenGeneralBound(subtype, **boundType);
+		}
+		
+		for (const auto& existing : specializations)
+		{
+			if (inserted.second == existing.first && !addSpecializationRelationship(inserted.first, existing.second))
+			{
+				return false;
+			}
+		}
+	}
+	
+	return true;
 }
 
 bool SolverState::unifyReferences(UnifiedReference a, TypeVariable b)
@@ -192,22 +230,35 @@ bool SolverState::unifyReferences(UnifiedReference a, TypeVariable b)
 		}
 	}
 	
-	for (auto& pair : generalizations)
+	auto iter = specializations.begin();
+	while (iter != specializations.end())
 	{
+		const auto& pair = *iter;
 		if (pair.first == b)
 		{
-			pair.first = a;
+			specializations.insert({a, pair.second});
+			iter = specializations.erase(iter);
 		}
-		
-		if (pair.second == b)
+		else if (pair.second == b)
 		{
-			pair.second = a;
+			specializations.insert({pair.first, a});
+			iter = specializations.erase(iter);
+		}
+		else
+		{
+			++iter;
 		}
 	}
 	
 	auto result = unificationMap.insert({b, a});
 	assert(result.second);
 	return result.second;
+}
+
+bool SolverState::bindType(tie::UnifiedReference type, const tie::Type &bound)
+{
+	auto result = boundTypes.insert({type, &bound});
+	return result.second || result.first->second == &bound;
 }
 
 UnifiedReference SolverState::getUnifiedReference(TypeVariable tv) const
@@ -256,7 +307,7 @@ void SolverState::commit()
 	update(parent->unificationMap, unificationMap);
 	update(parent->mostGeneralBounds, mostGeneralBounds);
 	update(parent->mostSpecificBounds, mostSpecificBounds);
-	parent->generalizations.swap(generalizations);
+	parent->specializations.swap(specializations);
 }
 
 #pragma mark - Solver
@@ -297,23 +348,9 @@ bool Solver::process(const SpecializesConstraint& constraint)
 
 bool Solver::process(const GeneralizesConstraint& constraint)
 {
-	if (auto boundType = context.getBoundType(constraint.left))
-	{
-		assert(context.getBoundType(constraint.right) == nullptr);
-		auto rightKey = currentState->getUnifiedReference(constraint.right);
-		return currentState->tightenSpecificBound(rightKey, *boundType);
-	}
-	else if (auto boundType = context.getBoundType(constraint.right))
-	{
-		auto leftKey = currentState->getUnifiedReference(constraint.left);
-		return currentState->tightenGeneralBound(leftKey, *boundType);
-	}
-	else
-	{
-		auto leftKey = currentState->getUnifiedReference(constraint.left);
-		auto rightKey = currentState->getUnifiedReference(constraint.right);
-		return currentState->addGeneralizationRelationship(leftKey, rightKey);
-	}
+	auto leftKey = currentState->getUnifiedReference(constraint.left);
+	auto rightKey = currentState->getUnifiedReference(constraint.right);
+	return currentState->addSpecializationRelationship(leftKey, rightKey);
 }
 
 bool Solver::process(const ConjunctionConstraint& constraint)

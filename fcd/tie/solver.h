@@ -28,6 +28,7 @@
 
 #include <algorithm>
 #include <deque>
+#include <set>
 #include <type_traits>
 #include <unordered_map>
 
@@ -79,33 +80,42 @@ namespace tie
 	private:
 		SolverConstraints constraints;
 		std::unordered_map<TypeVariable, UnifiedReference> unificationMap;
-		std::deque<std::pair<UnifiedReference, UnifiedReference>> generalizations;
-		std::unordered_map<TypeVariable, NOT_NULL(const tie::Type)> mostGeneralBounds;
-		std::unordered_map<TypeVariable, NOT_NULL(const tie::Type)> mostSpecificBounds;
+		std::unordered_map<UnifiedReference, NOT_NULL(const Type)> boundTypes;
+		std::set<std::pair<UnifiedReference, UnifiedReference>> specializations; // pair.first extends pair.second
+		std::unordered_map<TypeVariable, NOT_NULL(const Type)> mostGeneralBounds;
+		std::unordered_map<TypeVariable, NOT_NULL(const Type)> mostSpecificBounds;
 		SolverState* parent;
 		
 		SolverState(const SolverConstraints& constraints, NOT_NULL(SolverState) parent);
 		
-		template<typename MapLocator>
-		auto chainFind(MapLocator locator, TypeVariable key)
+		template<typename MapLocator, typename KeyType>
+		auto chainFind(MapLocator locator, KeyType key)
 			-> typename std::remove_reference<decltype(this->*locator)>::type::mapped_type*;
 		
-		template<typename MapLocator>
-		auto chainFind(MapLocator locator, TypeVariable key) const
+		template<typename MapLocator, typename KeyType>
+		auto chainFind(MapLocator locator, KeyType key) const
 			-> const typename std::remove_reference<decltype(this->*locator)>::type::mapped_type*;
+		
+		typedef std::unordered_map<TypeVariable, NOT_NULL(const Type)> SolverState::*BoundMapSelector;
+		typedef bool (Type::*TypeOrdering)(const Type&) const;
+		
+		bool tightenOneBound(UnifiedReference target, const Type& newBound, TypeOrdering ordering, BoundMapSelector bound, BoundMapSelector opposite);
+		bool tightenOneGeneralBound(UnifiedReference target, const Type& newLowerBound);
+		bool tightenOneSpecificBound(UnifiedReference target, const Type& newUpperBound);
 		
 	public:
 		SolverState(const InferenceContext::ConstraintList& constraints);
 		SolverState(SolverState&&) = default;
 		
-		bool tightenGeneralBound(UnifiedReference target, const tie::Type& newLowerBound);
-		bool tightenSpecificBound(UnifiedReference target, const tie::Type& newUpperBound);
-		bool addGeneralizationRelationship(UnifiedReference a, UnifiedReference b);
+		bool tightenGeneralBound(UnifiedReference target, const Type& newLowerBound);
+		bool tightenSpecificBound(UnifiedReference target, const Type& newUpperBound);
+		bool addSpecializationRelationship(UnifiedReference subtype, UnifiedReference inheritsFrom);
 		bool unifyReferences(UnifiedReference a, TypeVariable b);
+		bool bindType(UnifiedReference type, const Type& bound);
 		
 		UnifiedReference getUnifiedReference(TypeVariable variable) const;
-		const tie::Type* getGeneralBound(UnifiedReference ref) const;
-		const tie::Type* getSpecificBound(UnifiedReference ref) const;
+		const Type* getGeneralBound(UnifiedReference ref) const;
+		const Type* getSpecificBound(UnifiedReference ref) const;
 		
 		Constraint* getNextConstraint();
 		
@@ -132,13 +142,13 @@ namespace tie
 		
 		bool solve();
 		
-		std::pair<const tie::Type*, const tie::Type*> getInferredType(const llvm::Value& value) const;
+		std::pair<const Type*, const Type*> getInferredType(const llvm::Value& value) const;
 	};
 }
 
 #pragma mark - Templates Implementation
-template<typename MapLocator>
-auto tie::SolverState::chainFind(MapLocator locator, TypeVariable key)
+template<typename MapLocator, typename KeyType>
+auto tie::SolverState::chainFind(MapLocator locator, KeyType key)
 	-> typename std::remove_reference<decltype(this->*locator)>::type::mapped_type*
 {
 	auto current = this;
@@ -155,8 +165,8 @@ auto tie::SolverState::chainFind(MapLocator locator, TypeVariable key)
 	return nullptr;
 }
 
-template<typename MapLocator>
-auto tie::SolverState::chainFind(MapLocator locator, TypeVariable key) const
+template<typename MapLocator, typename KeyType>
+auto tie::SolverState::chainFind(MapLocator locator, KeyType key) const
 	-> const typename std::remove_reference<decltype(this->*locator)>::type::mapped_type*
 {
 	auto current = this;
