@@ -199,16 +199,6 @@ void SimpleType::print(llvm::raw_ostream &os) const
 }
 
 #pragma mark - CompositeType
-size_t tie::CompositeType::size(const Type& that)
-{
-	if (auto comp = dyn_cast<const CompositeType>(&that))
-	{
-		return comp->types.size();
-	}
-	
-	return 1;
-}
-
 bool tie::CompositeType::isSubsetOf(const Type &that) const
 {
 	if (auto comp = dyn_cast<const CompositeType>(&that))

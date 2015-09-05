@@ -106,7 +106,6 @@ namespace tie
 	protected:
 		PooledDeque<NOT_NULL(const Type)> types;
 		
-		static size_t size(const Type& that);
 		bool isSubsetOf(const Type& that) const;
 		bool isSupersetOf(const Type& that) const;
 		
