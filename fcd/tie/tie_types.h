@@ -22,7 +22,9 @@
 #ifndef tie_types_cpp
 #define tie_types_cpp
 
+#include "dumb_allocator.h"
 #include "llvm_warnings.h"
+#include "not_null.h"
 #include "pass_targetinfo.h"
 
 SILENCE_LLVM_WARNINGS_BEGIN()
@@ -47,31 +49,116 @@ namespace tie
 			Pointer,
 			DataPointer,
 			CodePointer,
-			MaxCategory
+			MaxSimple,
+			
+			// Special cases
+			Union,
+			Intersection,
 		};
 		
 	private:
 		Category category;
-		LateralComparisonInfo& lateral;
 		
 	public:
-		Type(Category category, LateralComparisonInfo& lateral)
-		: category(category), lateral(lateral)
+		Type(Category category)
+		: category(category)
 		{
 		}
 		
 		Category getCategory() const { return category; }
-		LateralComparisonInfo& getComparisonInfo() { return lateral; }
-		const LateralComparisonInfo& getComparisonInfo() const { return lateral; }
 		
 		// Overloading operators < and > would be very confusing, so let's not overload ==
 		// either for the sake of consistency.
-		bool isEqualTo(const Type& that) const;
-		bool isGeneralizationOf(const Type& that) const;
-		bool isSpecializationOf(const Type& that) const;
+		virtual bool isEqualTo(const Type& that) const = 0;
+		virtual bool isGeneralizationOf(const Type& that) const = 0;
+		virtual bool isSpecializationOf(const Type& that) const = 0;
 		
-		void print(llvm::raw_ostream& os) const;
+		virtual void print(llvm::raw_ostream& os) const = 0;
 		void dump() const;
+	};
+	
+	class SimpleType : public Type
+	{
+		LateralComparisonInfo& lateral;
+		
+	public:
+		static bool classof(const Type* that)
+		{
+			return that->getCategory() < MaxSimple;
+		}
+		
+		SimpleType(Category category, LateralComparisonInfo& lateral)
+		: Type(category), lateral(lateral)
+		{
+		}
+		
+		LateralComparisonInfo& getComparisonInfo() { return lateral; }
+		const LateralComparisonInfo& getComparisonInfo() const { return lateral; }
+		
+		virtual bool isEqualTo(const Type& that) const;
+		virtual bool isGeneralizationOf(const Type& that) const;
+		virtual bool isSpecializationOf(const Type& that) const;
+		virtual void print(llvm::raw_ostream& os) const;
+	};
+	
+	class CompositeType : public Type
+	{
+	protected:
+		PooledDeque<NOT_NULL(const Type)> types;
+		
+		static size_t size(const Type& that);
+		bool isSubsetOf(const Type& that) const;
+		bool isSupersetOf(const Type& that) const;
+		
+		CompositeType(Category cat, DumbAllocator& allocator)
+		: Type(cat), types(allocator)
+		{
+		}
+		
+	public:
+		static bool classof(const Type* that)
+		{
+			return that->getCategory() > MaxSimple;
+		}
+		
+		virtual bool isEqualTo(const Type& that) const;
+		virtual void print(llvm::raw_ostream& os) const;
+	};
+	
+	class UnionType : public CompositeType
+	{
+	public:
+		static bool classof(const Type* that)
+		{
+			return that->getCategory() == Union;
+		}
+		
+		UnionType(DumbAllocator& allocator)
+		: CompositeType(Union, allocator)
+		{
+		}
+		
+		virtual bool isGeneralizationOf(const Type& that) const;
+		virtual bool isSpecializationOf(const Type& that) const;
+		virtual void print(llvm::raw_ostream& os) const;
+	};
+	
+	class IntersectionType : public CompositeType
+	{
+	public:
+		static bool classof(const Type* that)
+		{
+			return that->getCategory() == Intersection;
+		}
+		
+		IntersectionType(DumbAllocator& allocator)
+		: CompositeType(Intersection, allocator)
+		{
+		}
+		
+		virtual bool isGeneralizationOf(const Type& that) const;
+		virtual bool isSpecializationOf(const Type& that) const;
+		virtual void print(llvm::raw_ostream& os) const;
 	};
 	
 	class LateralComparisonInfo
@@ -136,15 +223,14 @@ namespace tie
 	
 	class DataPointerLCI : public IntegralLCI
 	{
-		Type& type;
+		const Type& type;
 		
 	public:
-		DataPointerLCI(Type& type, size_t pointerWidth)
+		DataPointerLCI(const Type& type, size_t pointerWidth)
 		: IntegralLCI(DataPointer, pointerWidth), type(type)
 		{
 		}
 		
-		Type& getPointerType() { return type; }
 		const Type& getPointerType() const { return type; }
 		
 		virtual bool isGeneralizationOf(const LateralComparisonInfo& info) const;

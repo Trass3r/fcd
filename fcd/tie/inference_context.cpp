@@ -34,14 +34,14 @@ namespace
 {
 	tie::LateralComparisonInfo empty;
 	tie::IntegralLCI booleanLCI(1);
-	tie::Type anyType(tie::Type::Any, empty);
-	tie::Type booleanType(tie::Type::UnsignedInteger, booleanLCI);
+	tie::SimpleType anyType(tie::Type::Any, empty);
+	tie::SimpleType booleanType(tie::Type::UnsignedInteger, booleanLCI);
 	
 	template<typename LCI, typename... LCIArgs>
-	tie::Type& makeType(DumbAllocator& pool, tie::Type::Category category, LCIArgs... args)
+	tie::Type& makeType(DumbAllocator& pool, tie::Type::Category category, LCIArgs&&... args)
 	{
-		auto lci = pool.allocate<LCI>(args...);
-		return *pool.allocate<tie::Type>(category, *lci);
+		auto lci = pool.allocate<LCI>(std::forward<LCIArgs>(args)...);
+		return *pool.allocate<tie::SimpleType>(category, *lci);
 	}
 }
 
