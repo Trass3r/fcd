@@ -317,6 +317,14 @@ Solver::Solver(const InferenceContext& context)
 , rootState(constraints)
 , currentState(&rootState)
 {
+	for (TypeVariable v = 0; v < context.getVariableCount(); v++)
+	{
+		if (const Type* type = context.getBoundType(v))
+		{
+			auto ref = currentState->getUnifiedReference(v);
+			currentState->bindType(ref, *type);
+		}
+	}
 }
 
 bool Solver::process(const tie::Constraint &constraint)

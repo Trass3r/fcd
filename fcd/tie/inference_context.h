@@ -106,6 +106,7 @@ namespace tie
 		const ConstraintList getConstraints() const { return constraints; }
 		const tie::Type* getBoundType(TypeVariable tv) const;
 		TypeVariable getVariableForValue(const llvm::Value& value) const;
+		TypeVariable getVariableCount() const { return variables.size(); }
 		
 		void visitICmpInst(llvm::ICmpInst& inst, llvm::Value* constraintKey = nullptr);
 		void visitAllocaInst(llvm::AllocaInst& inst, llvm::Value* constraintKey = nullptr);
