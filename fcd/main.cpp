@@ -27,7 +27,10 @@ SILENCE_LLVM_WARNINGS_BEGIN()
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/Object/ObjectFile.h>
+#include <llvm/Support/CommandLine.h>
+#include <llvm/Support/Path.h>
 #include <llvm/Support/raw_os_ostream.h>
+#include <llvm/Support/MemoryBuffer.h>
 #include <llvm/Transforms/IPO.h>
 #include <llvm/Transforms/Scalar.h>
 SILENCE_LLVM_WARNINGS_END()
@@ -39,6 +42,7 @@ SILENCE_LLVM_WARNINGS_END()
 #include <unistd.h>
 #include <unordered_map>
 #include <unordered_set>
+#include <string>
 #include <sys/mman.h>
 
 #include "ast_passes.h"
@@ -53,6 +57,8 @@ using namespace std;
 
 namespace
 {
+	cl::opt<string> clArgInputFile(cl::Positional, cl::desc("Input program. Only ELF programs are supported."), cl::Required);
+	
 	template<typename T, size_t N>
 	constexpr size_t countof(T (&)[N])
 	{
@@ -137,11 +143,9 @@ namespace
 			{
 				auto destination = *callee;
 				if (functions.find(destination) == functions.end())
+				if (auto symbolInfo = object.getInfo(destination))
 				{
-					if (auto symbolInfo = object.getInfo(destination))
-					{
-						toVisit.insert({destination, *symbolInfo});
-					}
+					toVisit.insert({destination, *symbolInfo});
 				}
 			}
 		}
@@ -157,7 +161,7 @@ namespace
 		phaseOne.add(createInstructionCombiningPass());
 		phaseOne.add(createCFGSimplificationPass());
 		phaseOne.add(createRegisterPointerPromotionPass());
-		phaseOne.add(createNewGVNPass());
+		phaseOne.add(createGVNPass());
 		phaseOne.add(createDeadStoreEliminationPass());
 		phaseOne.add(createInstructionCombiningPass());
 		phaseOne.add(createCFGSimplificationPass());
@@ -405,13 +409,17 @@ namespace
 	{
 		auto& pr = *PassRegistry::getPassRegistry();
 		initializeCore(pr);
-		initializeScalarOpts(pr);
 		initializeVectorization(pr);
 		initializeIPO(pr);
 		initializeAnalysis(pr);
 		initializeIPA(pr);
 		initializeTransformUtils(pr);
 		initializeInstCombine(pr);
+		initializeScalarOpts(pr);
+		
+		// XXX: remove when MemorySSA goes mainstream
+		initializeMemorySSAPrinterPassPass(pr);
+		initializeMemorySSALazyPass(pr);
 		
 		initializeTargetInfoPass(pr);
 		initializeRegisterUsePass(pr);
@@ -419,77 +427,41 @@ namespace
 		initializeAstBackEndPass(pr);
 		initializeSESELoopPass(pr);
 	}
-
-	const char* basename(const char* path)
-	{
-		const char* result = path;
-		for (auto iter = result; *iter; iter++)
-		{
-			if (*iter == '/')
-			{
-				result = iter + 1;
-			}
-		}
-		return result;
-	}
 }
 
-int main(int argc, const char** argv)
+int main(int argc, char** argv)
 {
-	// We may want to use more elegant option parsing code eventually.
-	const char* programName = basename(argv[0]);
-	const char* filePath = nullptr;
+	using sys::path::filename;
 	
-	for (auto iter = &argv[1]; iter != &argv[argc]; iter++)
+	cl::ParseCommandLineOptions(argc, argv, "native program decompiler");
+	
+	auto programName = filename(argv[0]).str();
+	
+	if (auto bufferOrError = MemoryBuffer::getFile(clArgInputFile, -1, false))
 	{
-		if ((*iter)[0] == '-')
+		initializePasses();
+		
+		unique_ptr<MemoryBuffer>& buffer = bufferOrError.get();
+		auto start = reinterpret_cast<const uint8_t*>(buffer->getBufferStart());
+		auto end = reinterpret_cast<const uint8_t*>(buffer->getBufferEnd());
+		if (auto executable = Executable::parse(start, end))
 		{
-			continue;
+			LLVMContext& context = getGlobalContext();
+			if (auto module = makeModule(context, *executable, filename(clArgInputFile)))
+			{
+				raw_os_ostream rout(cout);
+				auto regUse = fixupStubs(*module, *executable);
+				decompile(*module, *regUse, rout);
+				return 0;
+			}
 		}
 		
-		if (filePath == nullptr)
-		{
-			filePath = *iter;
-		}
-		else
-		{
-			cerr << "usage: " << programName << " path" << endl;
-			return 1;
-		}
+		cerr << programName << ": couldn't parse executable " << clArgInputFile << endl;
+		return 2;
 	}
-	
-	if (filePath == nullptr)
+	else
 	{
-		cerr << "usage: " << programName << " path" << endl;
+		cerr << programName << ": can't open " << clArgInputFile << ": " << bufferOrError.getError().message() << endl;
 		return 1;
 	}
-	
-	const char* fileName = basename(filePath);
-	pair<const uint8_t*, const uint8_t*> mapping;
-	try
-	{
-		mapping = Executable::mmap(filePath);
-	}
-	catch (exception& ex)
-	{
-		cerr << programName << ": can't map " << filePath << ": " << ex.what() << endl;
-		return 1;
-	}
-	
-	initializePasses();
-	
-	if (auto executable = Executable::parse(mapping.first, mapping.second))
-	{
-		LLVMContext context;
-		if (auto module = makeModule(context, *executable, fileName))
-		{
-			raw_os_ostream rout(cout);
-			auto regUse = fixupStubs(*module, *executable);
-			decompile(*module, *regUse, rout);
-			return 0;
-		}
-	}
-	
-	cerr << programName << ": couldn't parse executable " << filePath << endl;
-	return 2;
 }

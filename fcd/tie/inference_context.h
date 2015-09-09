@@ -33,7 +33,7 @@ SILENCE_LLVM_WARNINGS_BEGIN()
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/InstVisitor.h>
 #include <llvm/Support/raw_ostream.h>
-#include <llvm/Transforms/Utils/MemorySSA.h>
+#include "MemorySSA.h"
 SILENCE_LLVM_WARNINGS_END()
 
 #include <deque>

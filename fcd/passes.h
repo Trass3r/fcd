@@ -30,12 +30,13 @@ SILENCE_LLVM_WARNINGS_BEGIN()
 #include <llvm/Analysis/CallGraphSCCPass.h>
 #include <llvm/Analysis/LoopPass.h>
 #include <llvm/Analysis/Passes.h>
+#include "MemorySSA.h"
 SILENCE_LLVM_WARNINGS_END()
 
 #include <unordered_map>
 #include <unordered_set>
 
-#include "backend.h"
+#include "pass_backend.h"
 #include "pass_targetinfo.h"
 #include "pass_reguse.h"
 #include "pass_targetinfo.h"
