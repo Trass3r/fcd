@@ -95,11 +95,9 @@ namespace tie
 					os << ") ";// << (char)ConstraintType << " (";
 					switch (ConstraintType)
 					{
-						case IsEqual: os << '='; break;
-						case Specializes: os << ':'; break;
-						case Generalizes: os << '!'; break;
 						case Conjunction: os << '&'; break;
 						case Disjunction: os << '|'; break;
+						default: assert(false);
 					}
 					(*iter)->print(os);
 				}
@@ -129,7 +127,15 @@ namespace tie
 		
 		virtual void print(llvm::raw_ostream& os) const override
 		{
-			os << '<' << left << "> " << (char)ConstraintType << " <" << right << '>';
+			os << '<' << left << "> ";
+			switch (type)
+			{
+				case IsEqual: os << '='; break;
+				case Specializes: os << ':'; break;
+				case Generalizes: os << '!'; break;
+				default: assert(false);
+			}
+			os << " <" << right << '>';
 		}
 	};
 	
