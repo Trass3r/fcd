@@ -23,8 +23,13 @@
 #define solver_cpp
 
 #include "inference_context.h"
+#include "llvm_warnings.h"
 #include "not_null.h"
 #include "tie_types.h"
+
+SILENCE_LLVM_WARNINGS_BEGIN()
+#include <llvm/ADT/SmallVector.h>
+SILENCE_LLVM_WARNINGS_END()
 
 #include <algorithm>
 #include <deque>
@@ -34,31 +39,14 @@
 
 namespace tie
 {
-	struct UnifiedReference
-	{
-		TypeVariable tv;
-		
-		explicit UnifiedReference(TypeVariable tv)
-		: tv(tv)
-		{
-		}
-		
-		operator TypeVariable() const { return tv; }
-		bool operator==(const UnifiedReference& that) const { return tv == that.tv; }
-	};
-}
-
-template<>
-struct std::hash<tie::UnifiedReference> : std::hash<tie::TypeVariable>
-{
-	auto operator()(const tie::UnifiedReference& that) const
-	{
-		return std::hash<tie::TypeVariable>::operator()(that.tv);
-	}
-};
-
-namespace tie
-{
+#ifdef DEBUG
+	typedef std::vector<TypeVariable> VariableReferenceGroup;
+#else
+	typedef llvm::SmallVector<TypeVariable, 2> VariableReferenceGroup;
+#endif
+	
+	typedef VariableReferenceGroup* UnifiedReference;
+	
 	class SolverConstraints
 	{
 		InferenceContext::ConstraintList::const_iterator current;
@@ -79,11 +67,12 @@ namespace tie
 	{
 	private:
 		SolverConstraints constraints;
+		std::deque<VariableReferenceGroup> referenceGroups;
 		std::unordered_map<TypeVariable, UnifiedReference> unificationMap;
 		std::unordered_map<UnifiedReference, NOT_NULL(const Type)> boundTypes;
+		std::unordered_map<UnifiedReference, NOT_NULL(const Type)> mostGeneralBounds;
+		std::unordered_map<UnifiedReference, NOT_NULL(const Type)> mostSpecificBounds;
 		std::set<std::pair<UnifiedReference, UnifiedReference>> specializations; // pair.first extends pair.second
-		std::unordered_map<TypeVariable, NOT_NULL(const Type)> mostGeneralBounds;
-		std::unordered_map<TypeVariable, NOT_NULL(const Type)> mostSpecificBounds;
 		SolverState* parent;
 		
 		SolverState(const SolverConstraints& constraints, NOT_NULL(SolverState) parent);
@@ -96,7 +85,7 @@ namespace tie
 		auto chainFind(MapLocator locator, KeyType key) const
 			-> const typename std::remove_reference<decltype(this->*locator)>::type::mapped_type*;
 		
-		typedef std::unordered_map<TypeVariable, NOT_NULL(const Type)> SolverState::*BoundMapSelector;
+		typedef std::unordered_map<UnifiedReference, NOT_NULL(const Type)> SolverState::*BoundMapSelector;
 		typedef bool (Type::*TypeOrdering)(const Type&) const;
 		
 		bool tightenOneBound(UnifiedReference target, const Type& newBound, TypeOrdering ordering, BoundMapSelector bound, BoundMapSelector opposite);
@@ -112,8 +101,8 @@ namespace tie
 		bool addSpecializationRelationship(UnifiedReference subtype, UnifiedReference inheritsFrom);
 		bool unifyReferences(UnifiedReference a, TypeVariable b);
 		bool bindType(UnifiedReference type, const Type& bound);
+		UnifiedReference getUnifiedReference(TypeVariable variable);
 		
-		UnifiedReference getUnifiedReference(TypeVariable variable) const;
 		const Type* getGeneralBound(UnifiedReference ref) const;
 		const Type* getSpecificBound(UnifiedReference ref) const;
 		

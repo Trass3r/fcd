@@ -113,8 +113,7 @@ SolverState::SolverState(const InferenceContext::ConstraintList& constraints)
 
 bool SolverState::tightenOneBound(tie::UnifiedReference target, const tie::Type &newBound, TypeOrdering ordering, BoundMapSelector bound, BoundMapSelector opposite)
 {
-	auto typeVar = static_cast<TypeVariable>(target);
-	if (NOT_NULL(const tie::Type)* mostSpecific = chainFind(bound, typeVar))
+	if (NOT_NULL(const tie::Type)* mostSpecific = chainFind(bound, target))
 	{
 		if (((*mostSpecific)->*ordering)(newBound))
 		{
@@ -122,25 +121,21 @@ bool SolverState::tightenOneBound(tie::UnifiedReference target, const tie::Type 
 		}
 	}
 	
-	bool updateBound = false;
-	if (NOT_NULL(const tie::Type)* mostGeneric = chainFind(opposite, typeVar))
+	bool updateBound = true;
+	if (NOT_NULL(const tie::Type)* mostGeneric = chainFind(opposite, target))
 	{
 		updateBound = ((*mostGeneric)->*ordering)(newBound);
-	}
-	else
-	{
-		updateBound = true;
 	}
 	
 	if (updateBound)
 	{
-		auto result = (this->*bound).insert({typeVar, &newBound});
+		auto result = (this->*bound).insert({target, &newBound});
 		if (!result.second)
 		{
 			result.first->second = &newBound;
 		}
 		
-		auto iter = (this->*opposite).find(typeVar);
+		auto iter = (this->*opposite).find(target);
 		if (iter != (this->*opposite).end() && iter->second == &newBound)
 		{
 			boundTypes.insert({target, &newBound});
@@ -218,47 +213,29 @@ bool SolverState::addSpecializationRelationship(UnifiedReference subtype, Unifie
 	return true;
 }
 
-bool SolverState::unifyReferences(UnifiedReference a, TypeVariable b)
+bool SolverState::unifyReferences(UnifiedReference unifyTo, TypeVariable newElement)
 {
-	if (NOT_NULL(const tie::Type)* bound = chainFind(&SolverState::mostGeneralBounds, b))
+	auto iter = unificationMap.find(newElement);
+	if (iter == unificationMap.end())
 	{
-		if (!tightenGeneralBound(a, **bound))
+		unifyTo->push_back(newElement);
+		unificationMap.insert({newElement, unifyTo});
+	}
+	else
+	{
+		auto& moveFrom = *iter->second;
+		if (&moveFrom != unifyTo)
 		{
-			return false;
+			for (TypeVariable tv : moveFrom)
+			{
+				unificationMap[tv] = unifyTo;
+			}
+			unifyTo->insert(unifyTo->end(), moveFrom.begin(), moveFrom.end());
+			moveFrom.clear();
+			assert(moveFrom.size() == 0);
 		}
 	}
-	
-	if (NOT_NULL(const tie::Type)* bound = chainFind(&SolverState::mostSpecificBounds, b))
-	{
-		if (!tightenSpecificBound(a, **bound))
-		{
-			return false;
-		}
-	}
-	
-	auto iter = specializations.begin();
-	while (iter != specializations.end())
-	{
-		const auto& pair = *iter;
-		if (pair.first == b)
-		{
-			specializations.insert({a, pair.second});
-			iter = specializations.erase(iter);
-		}
-		else if (pair.second == b)
-		{
-			specializations.insert({pair.first, a});
-			iter = specializations.erase(iter);
-		}
-		else
-		{
-			++iter;
-		}
-	}
-	
-	auto result = unificationMap.insert({b, a});
-	assert(result.second);
-	return result.second;
+	return true;
 }
 
 bool SolverState::bindType(tie::UnifiedReference type, const tie::Type &bound)
@@ -267,13 +244,18 @@ bool SolverState::bindType(tie::UnifiedReference type, const tie::Type &bound)
 	return result.second || result.first->second == &bound;
 }
 
-UnifiedReference SolverState::getUnifiedReference(TypeVariable tv) const
+UnifiedReference SolverState::getUnifiedReference(TypeVariable tv)
 {
 	if (const UnifiedReference* ref = chainFind(&SolverState::unificationMap, tv))
 	{
 		return *ref;
 	}
-	return UnifiedReference(tv);
+	
+	referenceGroups.emplace_back();
+	auto result = &referenceGroups.back();
+	result->push_back(tv);
+	unificationMap.insert({tv, result});
+	return result;
 }
 
 const tie::Type* SolverState::getGeneralBound(UnifiedReference ref) const
@@ -319,27 +301,21 @@ void SolverState::commit()
 void SolverState::dump() const
 {
 	raw_os_ostream rerr(cerr);
-	unordered_multimap<TypeVariable, TypeVariable> aliases;
-	auto current = this;
-	while (current != nullptr)
-	{
-		for (const auto& pair : current->unificationMap)
-		{
-			aliases.insert({pair.second, pair.first});
-		}
-		current = current->parent;
-	}
-	
 	rerr << "Variable aliases:";
-	TypeVariable last = -1;
-	for (const auto& pair : aliases)
+	
+	for (const auto& group : referenceGroups)
 	{
-		if (pair.first != last)
+		if (group.size() > 1)
 		{
-			rerr << "\n  " << pair.first;
-			last = pair.first;
+			auto iter = group.begin();
+			rerr << "\n " << *iter;
+			++iter;
+			while (iter != group.end())
+			{
+				rerr << " = " << *iter;
+				++iter;
+			}
 		}
-		rerr << " = " << pair.second;
 	}
 	rerr << '\n';
 }
