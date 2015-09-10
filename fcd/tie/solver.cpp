@@ -21,6 +21,12 @@
 
 #include "solver.h"
 
+SILENCE_LLVM_WARNINGS_BEGIN()
+#include <llvm/Support/raw_os_ostream.h>
+SILENCE_LLVM_WARNINGS_END()
+
+#include <iostream>
+
 using namespace llvm;
 using namespace std;
 using namespace tie;
@@ -308,6 +314,34 @@ void SolverState::commit()
 	update(parent->mostGeneralBounds, mostGeneralBounds);
 	update(parent->mostSpecificBounds, mostSpecificBounds);
 	parent->specializations.swap(specializations);
+}
+
+void SolverState::dump() const
+{
+	raw_os_ostream rerr(cerr);
+	unordered_multimap<TypeVariable, TypeVariable> aliases;
+	auto current = this;
+	while (current != nullptr)
+	{
+		for (const auto& pair : current->unificationMap)
+		{
+			aliases.insert({pair.second, pair.first});
+		}
+		current = current->parent;
+	}
+	
+	rerr << "Variable aliases:";
+	TypeVariable last = -1;
+	for (const auto& pair : aliases)
+	{
+		if (pair.first != last)
+		{
+			rerr << "\n  " << pair.first;
+			last = pair.first;
+		}
+		rerr << " = " << pair.second;
+	}
+	rerr << '\n';
 }
 
 #pragma mark - Solver

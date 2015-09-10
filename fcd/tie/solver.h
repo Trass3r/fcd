@@ -121,6 +121,8 @@ namespace tie
 		
 		SolverState createSubState(const SolverConstraints& constraints);
 		void commit();
+		
+		void dump() const;
 	};
 	
 	class Solver
