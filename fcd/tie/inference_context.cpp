@@ -145,11 +145,22 @@ namespace tie
 	{
 		constraintKey = constraintKey ? constraintKey : &inst;
 		auto variable = valueVariable(*constraintKey);
-		assert(inst.getType()->isIntegerTy());
-		unsigned bitCount = inst.getType()->getIntegerBitWidth();
+		
+		auto type = inst.getType();
+		if (type->isIntegerTy())
+		{
+			constrain<GeneralizesConstraint>(variable, getNum(type->getIntegerBitWidth()));
+		}
+		else if (type->isPointerTy())
+		{
+			constrain<GeneralizesConstraint>(variable, getPointer());
+		}
+		else
+		{
+			assert(false);
+		}
 		
 		constrain<SpecializesConstraint>(valueVariable(*inst.getPointerOperand()), getPointer());
-		constrain<GeneralizesConstraint>(variable, getNum(bitCount));
 		
 		if (auto access = mssa.getMemoryAccess(constraintKey))
 		if (auto def = access->getDefiningAccess())
