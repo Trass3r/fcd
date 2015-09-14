@@ -42,7 +42,7 @@ namespace tie
 #ifdef DEBUG
 	typedef std::vector<TypeVariable> VariableReferenceGroup;
 #else
-	typedef llvm::SmallVector<TypeVariable, 2> VariableReferenceGroup;
+	typedef llvm::SmallVector<TypeVariable, 1> VariableReferenceGroup;
 #endif
 	
 	typedef VariableReferenceGroup* UnifiedReference;

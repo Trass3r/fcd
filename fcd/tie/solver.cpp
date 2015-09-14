@@ -232,7 +232,6 @@ bool SolverState::unifyReferences(UnifiedReference unifyTo, TypeVariable newElem
 			}
 			unifyTo->insert(unifyTo->end(), moveFrom.begin(), moveFrom.end());
 			moveFrom.clear();
-			assert(moveFrom.size() == 0);
 		}
 	}
 	return true;
@@ -301,23 +300,42 @@ void SolverState::commit()
 void SolverState::dump() const
 {
 	raw_os_ostream rerr(cerr);
-	rerr << "Variable aliases:";
+	rerr << "Non-recursive dump\n"; // does not take into account parent SolverState
 	
-	for (const auto& group : referenceGroups)
+	rerr << "\nBounds:\n";
+	for (const auto& refList : referenceGroups)
 	{
-		if (group.size() > 1)
+		UnifiedReference group = const_cast<UnifiedReference>(&refList);
+		auto general = mostGeneralBounds.find(group);
+		auto specific = mostSpecificBounds.find(group);
+		if (general != mostGeneralBounds.end() || specific != mostSpecificBounds.end())
 		{
-			auto iter = group.begin();
-			rerr << "\n " << *iter;
-			++iter;
-			while (iter != group.end())
+			rerr << "  ";
+			if (specific != mostSpecificBounds.end())
 			{
-				rerr << " = " << *iter;
-				++iter;
+				specific->second->print(rerr);
+				rerr << " : ";
 			}
+			
+			rerr << '<';// << group << '>';
+			auto groupIter = group->begin();
+			auto groupEnd = group->end();
+			assert(groupIter != groupEnd);
+			rerr << *groupIter;
+			while (groupIter != groupEnd)
+			{
+				rerr << ", " << *groupIter;
+				groupIter++;
+			}
+			
+			if (general != mostGeneralBounds.end())
+			{
+				rerr << " : ";
+				general->second->print(rerr);
+			}
+			rerr << '\n';
 		}
 	}
-	rerr << '\n';
 }
 
 #pragma mark - Solver
