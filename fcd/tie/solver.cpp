@@ -80,6 +80,24 @@ namespace
 			}
 		}
 	}
+	
+	void printGroup(raw_ostream& os, UnifiedReference ref)
+	{
+		os << '<';
+		auto iter = ref->begin();
+		auto end = ref->end();
+		if (iter != end)
+		{
+			os << *iter;
+			++iter;
+			while (iter != end)
+			{
+				os << ", " << *iter;
+				++iter;
+			}
+		}
+		os << '>';
+	}
 }
 
 #pragma mark -
@@ -111,34 +129,31 @@ SolverState::SolverState(const InferenceContext::ConstraintList& constraints)
 {
 }
 
-bool SolverState::tightenOneBound(tie::UnifiedReference target, const tie::Type &newBound, TypeOrdering ordering, BoundMapSelector bound, BoundMapSelector opposite)
+bool SolverState::tightenOneBound(tie::UnifiedReference target, const tie::Type &newBound, TypeOrdering ordering, BoundMapSelector boundSelector, BoundMapSelector oppositeSelector)
 {
-	if (NOT_NULL(const tie::Type)* mostSpecific = chainFind(bound, target))
+	if (NOT_NULL(const tie::Type)* oppositeBound = chainFind(oppositeSelector, target))
 	{
-		if (((*mostSpecific)->*ordering)(newBound))
+		// Make sure that new suggested bound is correctly related to the opposite bound.
+		if (!(newBound.*ordering)(**oppositeBound))
 		{
 			return false;
 		}
 	}
 	
 	bool updateBound = true;
-	if (NOT_NULL(const tie::Type)* mostGeneric = chainFind(opposite, target))
+	if (NOT_NULL(const tie::Type)* currentBound = chainFind(boundSelector, target))
 	{
-		updateBound = ((*mostGeneric)->*ordering)(newBound);
+		// Update bound only if new type is more restrictive.
+		updateBound = ((*currentBound)->*ordering)(newBound);
 	}
 	
 	if (updateBound)
 	{
-		auto result = (this->*bound).insert({target, &newBound});
+		// Insert or update value.
+		auto result = (this->*boundSelector).insert({target, &newBound});
 		if (!result.second)
 		{
 			result.first->second = &newBound;
-		}
-		
-		auto iter = (this->*opposite).find(target);
-		if (iter != (this->*opposite).end() && iter->second == &newBound)
-		{
-			boundTypes.insert({target, &newBound});
 		}
 	}
 	return true;
@@ -146,12 +161,12 @@ bool SolverState::tightenOneBound(tie::UnifiedReference target, const tie::Type 
 
 bool SolverState::tightenOneGeneralBound(tie::UnifiedReference target, const tie::Type& newLowerBound)
 {
-	return tightenOneBound(target, newLowerBound, &Type::isGeneralizationOf, &SolverState::mostSpecificBounds, &SolverState::mostGeneralBounds);
+	return tightenOneBound(target, newLowerBound, &Type::isGeneralizationOf, &SolverState::mostGeneralBounds, &SolverState::mostSpecificBounds);
 }
 
 bool SolverState::tightenOneSpecificBound(tie::UnifiedReference target, const tie::Type& newUpperBound)
 {
-	return tightenOneBound(target, newUpperBound, &Type::isSpecializationOf, &SolverState::mostGeneralBounds, &SolverState::mostSpecificBounds);
+	return tightenOneBound(target, newUpperBound, &Type::isSpecializationOf, &SolverState::mostSpecificBounds, &SolverState::mostGeneralBounds);
 }
 
 bool SolverState::tightenGeneralBound(tie::UnifiedReference target, const tie::Type &newLowerBound)
@@ -226,6 +241,26 @@ bool SolverState::unifyReferences(UnifiedReference unifyTo, TypeVariable newElem
 		auto& moveFrom = *iter->second;
 		if (&moveFrom != unifyTo)
 		{
+			if (auto boundType = chainFind(&SolverState::boundTypes, &moveFrom))
+			if (!bindType(unifyTo, **boundType))
+			{
+				return false;
+			}
+			
+			if (auto general = chainFind(&SolverState::mostGeneralBounds, &moveFrom))
+			if (!tightenGeneralBound(unifyTo, **general))
+			{
+				return false;
+			}
+			
+			if (auto specific = chainFind(&SolverState::mostSpecificBounds, &moveFrom))
+			if (!tightenSpecificBound(unifyTo, **specific))
+			{
+				return false;
+			}
+			
+			// Specializations should have been adjusted now that the bounds have been tightened.
+			
 			for (TypeVariable tv : moveFrom)
 			{
 				unificationMap[tv] = unifyTo;
@@ -317,16 +352,7 @@ void SolverState::dump() const
 				rerr << " : ";
 			}
 			
-			rerr << '<';// << group << '>';
-			auto groupIter = group->begin();
-			auto groupEnd = group->end();
-			assert(groupIter != groupEnd);
-			rerr << *groupIter;
-			while (groupIter != groupEnd)
-			{
-				rerr << ", " << *groupIter;
-				groupIter++;
-			}
+			printGroup(rerr, group);
 			
 			if (general != mostGeneralBounds.end())
 			{
