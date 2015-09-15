@@ -81,11 +81,11 @@ namespace
 		}
 	}
 	
-	void printGroup(raw_ostream& os, UnifiedReference ref)
+	void printGroup(raw_ostream& os, const VariableReferenceGroup& ref)
 	{
 		os << '<';
-		auto iter = ref->begin();
-		auto end = ref->end();
+		auto iter = ref.begin();
+		auto end = ref.end();
 		if (iter != end)
 		{
 			os << *iter;
@@ -120,7 +120,7 @@ Constraint* SolverConstraints::pop()
 
 #pragma mark - Solver State
 SolverState::SolverState(const SolverConstraints& constraints, NOT_NULL(SolverState) parent)
-: constraints(constraints), specializations(parent->specializations), parent(parent)
+: constraints(constraints), referenceGroups(parent->referenceGroups), specializations(parent->specializations), parent(parent)
 {
 }
 
@@ -230,30 +230,30 @@ bool SolverState::addSpecializationRelationship(UnifiedReference subtype, Unifie
 
 bool SolverState::unifyReferences(UnifiedReference unifyTo, TypeVariable newElement)
 {
+	auto& unifyGroup = referenceGroups.at(unifyTo);
 	auto iter = unificationMap.find(newElement);
 	if (iter == unificationMap.end())
 	{
-		unifyTo->push_back(newElement);
+		unifyGroup.push_back(newElement);
 		unificationMap.insert({newElement, unifyTo});
 	}
 	else
 	{
-		auto& moveFrom = *iter->second;
-		if (&moveFrom != unifyTo)
+		if (iter->second != unifyTo)
 		{
-			if (auto boundType = chainFind(&SolverState::boundTypes, &moveFrom))
+			if (auto boundType = chainFind(&SolverState::boundTypes, iter->second))
 			if (!bindType(unifyTo, **boundType))
 			{
 				return false;
 			}
 			
-			if (auto general = chainFind(&SolverState::mostGeneralBounds, &moveFrom))
+			if (auto general = chainFind(&SolverState::mostGeneralBounds, iter->second))
 			if (!tightenGeneralBound(unifyTo, **general))
 			{
 				return false;
 			}
 			
-			if (auto specific = chainFind(&SolverState::mostSpecificBounds, &moveFrom))
+			if (auto specific = chainFind(&SolverState::mostSpecificBounds, iter->second))
 			if (!tightenSpecificBound(unifyTo, **specific))
 			{
 				return false;
@@ -261,11 +261,12 @@ bool SolverState::unifyReferences(UnifiedReference unifyTo, TypeVariable newElem
 			
 			// Specializations should have been adjusted now that the bounds have been tightened.
 			
+			auto& moveFrom = referenceGroups.at(iter->second);
 			for (TypeVariable tv : moveFrom)
 			{
 				unificationMap[tv] = unifyTo;
 			}
-			unifyTo->insert(unifyTo->end(), moveFrom.begin(), moveFrom.end());
+			unifyGroup.insert(unifyGroup.end(), moveFrom.begin(), moveFrom.end());
 			moveFrom.clear();
 		}
 	}
@@ -285,11 +286,11 @@ UnifiedReference SolverState::getUnifiedReference(TypeVariable tv)
 		return *ref;
 	}
 	
+	size_t index = referenceGroups.size();
 	referenceGroups.emplace_back();
-	auto result = &referenceGroups.back();
-	result->push_back(tv);
-	unificationMap.insert({tv, result});
-	return result;
+	referenceGroups.back().push_back(tv);
+	unificationMap.insert({tv, index});
+	return index;
 }
 
 const tie::Type* SolverState::getGeneralBound(UnifiedReference ref) const
@@ -326,6 +327,7 @@ void SolverState::commit()
 {
 	assert(parent != nullptr);
 	parent->constraints = constraints;
+	parent->referenceGroups = referenceGroups;
 	update(parent->unificationMap, unificationMap);
 	update(parent->mostGeneralBounds, mostGeneralBounds);
 	update(parent->mostSpecificBounds, mostSpecificBounds);
@@ -338,11 +340,10 @@ void SolverState::dump() const
 	rerr << "Non-recursive dump\n"; // does not take into account parent SolverState
 	
 	rerr << "\nBounds:\n";
-	for (const auto& refList : referenceGroups)
+	for (UnifiedReference i = 0; i < referenceGroups.size(); ++i)
 	{
-		UnifiedReference group = const_cast<UnifiedReference>(&refList);
-		auto general = mostGeneralBounds.find(group);
-		auto specific = mostSpecificBounds.find(group);
+		auto general = mostGeneralBounds.find(i);
+		auto specific = mostSpecificBounds.find(i);
 		if (general != mostGeneralBounds.end() || specific != mostSpecificBounds.end())
 		{
 			rerr << "  ";
@@ -352,7 +353,7 @@ void SolverState::dump() const
 				rerr << " : ";
 			}
 			
-			printGroup(rerr, group);
+			printGroup(rerr, referenceGroups[i]);
 			
 			if (general != mostGeneralBounds.end())
 			{

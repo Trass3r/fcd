@@ -45,7 +45,7 @@ namespace tie
 	typedef llvm::SmallVector<TypeVariable, 1> VariableReferenceGroup;
 #endif
 	
-	typedef VariableReferenceGroup* UnifiedReference;
+	typedef size_t UnifiedReference;
 	
 	class SolverConstraints
 	{
