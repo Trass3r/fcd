@@ -342,43 +342,47 @@ namespace tie
 	{
 		constraintKey = constraintKey ? constraintKey : &inst;
 		auto variable = valueVariable(*constraintKey);
-		// Try to imply that the value had had this type all along. If it doesn't work,
-		// fall back to an actual cast.
-		auto disj = pool.allocate<DisjunctionConstraint>(pool);
+		auto operandVariable = valueVariable(*inst.getOperand(0));
 		
-		auto type = inst.getType();
-		auto casted = valueVariable(*inst.getOperand(0));
-		if (auto intType = dyn_cast<IntegerType>(type))
+		llvm::Type* targetType = inst.getType();
+		switch (inst.getOpcode())
 		{
-			auto num = getNum(intType->getIntegerBitWidth());
-			auto conj = pool.allocate<ConjunctionConstraint>(pool);
-			conj->constrain<SpecializesConstraint>(casted, num);
-			conj->constrain<IsEqualConstraint>(variable, casted);
-			disj->constraints.push_back(conj);
-			
-			// fall back
-			disj->constrain<SpecializesConstraint>(variable, num);
+			case llvm::Instruction::AddrSpaceCast:
+				constrain<IsEqualConstraint>(variable, operandVariable);
+				break;
+				
+			case llvm::Instruction::IntToPtr:
+				constrain<SpecializesConstraint>(variable, getPointer());
+				constrain<IsEqualConstraint>(variable, operandVariable);
+				break;
+				
+			case llvm::Instruction::SExt:
+				constrain<SpecializesConstraint>(variable, getSint());
+				constrain<GeneralizesConstraint>(variable, getSint(targetType->getIntegerBitWidth()));
+				break;
+				
+			case llvm::Instruction::ZExt:
+				constrain<SpecializesConstraint>(variable, getUint());
+				constrain<GeneralizesConstraint>(variable, getUint(targetType->getIntegerBitWidth()));
+				break;
+				
+			case llvm::Instruction::Trunc:
+				constrain<GeneralizesConstraint>(variable, getNum(targetType->getIntegerBitWidth()));
+				constrain<GeneralizesConstraint>(variable, operandVariable);
+				break;
+				
+			case llvm::Instruction::BitCast:
+			case llvm::Instruction::PtrToInt:
+				
+			case llvm::Instruction::FPExt:
+			case llvm::Instruction::FPToSI:
+			case llvm::Instruction::FPToUI:
+			case llvm::Instruction::SIToFP:
+			case llvm::Instruction::FPTrunc:
+			case llvm::Instruction::UIToFP:
+			default:
+				llvm_unreachable("not implemented");
 		}
-		else if (isa<PointerType>(type))
-		{
-			auto pointer = getPointer();
-			auto conj = pool.allocate<ConjunctionConstraint>(pool);
-			conj->constrain<SpecializesConstraint>(casted, pointer);
-			conj->constrain<IsEqualConstraint>(variable, casted);
-			disj->constraints.push_back(conj);
-			
-			// fall back
-			disj->constrain<SpecializesConstraint>(variable, pointer);
-		}
-		else
-		{
-			assert(!"Implement me");
-		}
-		
-		disj->constrain<IsEqualConstraint>(variable, casted);
-		
-		constraints.push_back(disj);
-		constraints.push_back(disj);
 	}
 	
 	void InferenceContext::visitTerminatorInst(TerminatorInst &inst, Value* constraintKey)

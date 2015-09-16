@@ -59,6 +59,39 @@ namespace tie
 	};
 	
 	template<Constraint::Type ConstraintType>
+	struct BinaryConstraint : public Constraint
+	{
+		static bool classof(const Constraint* that)
+		{
+			return that->type == ConstraintType;
+		}
+		
+		TypeVariable left, right;
+		
+		BinaryConstraint(TypeVariable left, TypeVariable right)
+		: Constraint(ConstraintType), left(left), right(right)
+		{
+		}
+		
+		virtual void print(llvm::raw_ostream& os) const override
+		{
+			os << '<' << left << "> ";
+			switch (type)
+			{
+				case IsEqual: os << '='; break;
+				case Specializes: os << ':'; break;
+				case Generalizes: os << '!'; break;
+				default: assert(false);
+			}
+			os << " <" << right << '>';
+		}
+	};
+	
+	using SpecializesConstraint = BinaryConstraint<Constraint::Specializes>;
+	using GeneralizesConstraint = BinaryConstraint<Constraint::Generalizes>;
+	using IsEqualConstraint = BinaryConstraint<Constraint::IsEqual>;
+	
+	template<Constraint::Type ConstraintType>
 	struct CombinatorConstraint : public Constraint
 	{
 		static bool classof(const Constraint* that)
@@ -77,6 +110,10 @@ namespace tie
 		template<typename Constraint, typename... TArgs>
 		Constraint& constrain(TArgs&&... args)
 		{
+			// Equality constraints inside disjunctions are too hard to unify, so disallow them at compile-time.
+			// They could be allowed in conjunctions, but conjunctions are only useful as part of disjunctions,
+			// so we might as well disable it all.
+			static_assert(!std::is_same<Constraint, IsEqualConstraint>::value, "can't instantiate equality constraint");
 			auto constraint = pool.allocate<Constraint>(args...);
 			constraints.push_back(constraint);
 			return *constraint;
@@ -109,39 +146,7 @@ namespace tie
 	
 	using ConjunctionConstraint = CombinatorConstraint<Constraint::Conjunction>;
 	using DisjunctionConstraint = CombinatorConstraint<Constraint::Disjunction>;
-	
-	template<Constraint::Type ConstraintType>
-	struct BinaryConstraint : public Constraint
-	{
-		static bool classof(const Constraint* that)
-		{
-			return that->type == ConstraintType;
-		}
-		
-		TypeVariable left, right;
-		
-		BinaryConstraint(TypeVariable left, TypeVariable right)
-		: Constraint(ConstraintType), left(left), right(right)
-		{
-		}
-		
-		virtual void print(llvm::raw_ostream& os) const override
-		{
-			os << '<' << left << "> ";
-			switch (type)
-			{
-				case IsEqual: os << '='; break;
-				case Specializes: os << ':'; break;
-				case Generalizes: os << '!'; break;
-				default: assert(false);
-			}
-			os << " <" << right << '>';
-		}
-	};
-	
-	using SpecializesConstraint = BinaryConstraint<Constraint::Specializes>;
-	using GeneralizesConstraint = BinaryConstraint<Constraint::Generalizes>;
-	using IsEqualConstraint = BinaryConstraint<Constraint::IsEqual>;
 }
+
 
 #endif /* constraints_cpp */
