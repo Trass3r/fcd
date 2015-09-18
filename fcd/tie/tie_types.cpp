@@ -256,6 +256,33 @@ void tie::CompositeType::print(llvm::raw_ostream &os) const
 }
 
 #pragma mark - UnionType
+UnionType& UnionType::join(DumbAllocator& allocator, const tie::Type &a, const tie::Type &b)
+{
+	auto resultType = allocator.allocate<UnionType>(allocator);
+	
+	auto unionTypeA = dyn_cast<UnionType>(&a);
+	auto unionTypeB = dyn_cast<UnionType>(&b);
+	if (unionTypeA == nullptr)
+	{
+		resultType->types.push_back(&a);
+	}
+	else
+	{
+		resultType->types.push_back(unionTypeA->types.begin(), unionTypeA->types.end());
+	}
+	
+	if (unionTypeB == nullptr)
+	{
+		resultType->types.push_back(&b);
+	}
+	else
+	{
+		resultType->types.push_back(unionTypeB->types.begin(), unionTypeB->types.end());
+	}
+	
+	return *resultType;
+}
+
 bool UnionType::isGeneralizationOf(const tie::Type &that) const
 {
 	return isSupersetOf(that);

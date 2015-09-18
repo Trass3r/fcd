@@ -63,19 +63,34 @@ namespace tie
 		Constraint* pop();
 	};
 	
-	class SolverState
+	class SolverTypeReferences
 	{
-	private:
-		SolverConstraints constraints;
 		std::deque<VariableReferenceGroup> referenceGroups;
 		std::unordered_map<TypeVariable, UnifiedReference> unificationMap;
+		
+	public:
+		SolverTypeReferences() = default;
+		SolverTypeReferences(const SolverTypeReferences&) = delete;
+		
+		UnifiedReference getUnifiedReference(TypeVariable var);
+		void unify(UnifiedReference ref, TypeVariable newVar);
+		size_t size() const { return referenceGroups.size(); }
+		
+		void printGroup(llvm::raw_ostream& os, UnifiedReference group) const;
+	};
+	
+	class SolverState
+	{
+		DumbAllocator& pool;
+		SolverConstraints constraints;
+		SolverTypeReferences& references;
 		std::unordered_map<UnifiedReference, NOT_NULL(const Type)> boundTypes;
 		std::unordered_map<UnifiedReference, NOT_NULL(const Type)> mostGeneralBounds;
 		std::unordered_map<UnifiedReference, NOT_NULL(const Type)> mostSpecificBounds;
 		std::set<std::pair<UnifiedReference, UnifiedReference>> specializations; // pair.first extends pair.second
 		SolverState* parent;
 		
-		SolverState(const SolverConstraints& constraints, NOT_NULL(SolverState) parent);
+		SolverState(NOT_NULL(SolverState) parent, const SolverConstraints& constraints);
 		
 		template<typename MapLocator, typename KeyType>
 		auto chainFind(MapLocator locator, KeyType key)
@@ -93,14 +108,15 @@ namespace tie
 		bool tightenOneSpecificBound(UnifiedReference target, const Type& newUpperBound);
 		
 	public:
-		SolverState(const InferenceContext::ConstraintList& constraints);
+		SolverState(DumbAllocator& pool, SolverTypeReferences& references, const InferenceContext::ConstraintList& constraints);
 		SolverState(SolverState&&) = default;
 		
 		bool tightenGeneralBound(UnifiedReference target, const Type& newLowerBound);
 		bool tightenSpecificBound(UnifiedReference target, const Type& newUpperBound);
 		bool addSpecializationRelationship(UnifiedReference subtype, UnifiedReference inheritsFrom);
-		bool unifyReferences(UnifiedReference a, TypeVariable b);
+		
 		bool bindType(UnifiedReference type, const Type& bound);
+		bool unifyReferences(UnifiedReference a, TypeVariable b);
 		UnifiedReference getUnifiedReference(TypeVariable variable);
 		
 		const Type* getGeneralBound(UnifiedReference ref) const;
@@ -110,14 +126,17 @@ namespace tie
 		
 		SolverState createSubState(const SolverConstraints& constraints);
 		void commit();
+		bool unionMerge(const SolverState& that);
 		
 		void dump() const;
 	};
 	
 	class Solver
 	{
+		DumbAllocator& pool;
 		const InferenceContext& context;
 		InferenceContext::ConstraintList constraints;
+		SolverTypeReferences typeReferences;
 		SolverState rootState;
 		SolverState* currentState;
 		
@@ -129,7 +148,7 @@ namespace tie
 		bool process(const DisjunctionConstraint& disj);
 		
 	public:
-		Solver(const InferenceContext& context);
+		Solver(DumbAllocator& pool, const InferenceContext& context);
 		
 		bool solve();
 		

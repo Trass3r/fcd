@@ -22,6 +22,7 @@
 #ifndef pass_tie_cpp
 #define pass_tie_cpp
 
+#include "dumb_allocator.h"
 #include "llvm_warnings.h"
 
 SILENCE_LLVM_WARNINGS_BEGIN()
@@ -31,6 +32,8 @@ SILENCE_LLVM_WARNINGS_END()
 
 class TypeInference : public llvm::CallGraphSCCPass
 {
+	DumbAllocator pool;
+	
 public:
 	static char ID;
 	

@@ -63,7 +63,7 @@ bool TypeInference::runOnSCC(CallGraphSCC &scc)
 			tie::InferenceContext ctx(info, mssa);
 			ctx.visit(*func);
 			
-			tie::Solver solver(ctx);
+			tie::Solver solver(pool, ctx);
 			solver.solve();
 		}
 	}

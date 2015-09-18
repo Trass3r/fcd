@@ -68,35 +68,16 @@ namespace
 		return result;
 	}
 	
-	template<typename TMap>
-	void update(TMap& into, const TMap& reference)
+	bool update(const std::unordered_map<UnifiedReference, NOT_NULL(const tie::Type)>& reference, SolverState& thatState, bool (SolverState::*tighten)(UnifiedReference ref, const tie::Type&))
 	{
 		for (const auto& pair : reference)
 		{
-			auto insertResult = into.insert(pair);
-			if (!insertResult.second)
+			if (!(thatState.*tighten)(pair.first, *pair.second))
 			{
-				insertResult.first->second = pair.second;
+				return false;
 			}
 		}
-	}
-	
-	void printGroup(raw_ostream& os, const VariableReferenceGroup& ref)
-	{
-		os << '<';
-		auto iter = ref.begin();
-		auto end = ref.end();
-		if (iter != end)
-		{
-			os << *iter;
-			++iter;
-			while (iter != end)
-			{
-				os << ", " << *iter;
-				++iter;
-			}
-		}
-		os << '>';
+		return true;
 	}
 }
 
@@ -118,14 +99,76 @@ Constraint* SolverConstraints::pop()
 	return result;
 }
 
+#pragma mark - Solver Type References
+UnifiedReference SolverTypeReferences::getUnifiedReference(TypeVariable var)
+{
+	auto iter = unificationMap.find(var);
+	if (iter != unificationMap.end())
+	{
+		return iter->second;
+	}
+	
+	size_t index = referenceGroups.size();
+	referenceGroups.emplace_back();
+	referenceGroups.back().push_back(var);
+	unificationMap.insert({var, index});
+	return index;
+}
+
+void SolverTypeReferences::unify(UnifiedReference unifyTo, TypeVariable newElement)
+{
+	auto& unifyGroup = referenceGroups.at(unifyTo);
+	auto iter = unificationMap.find(newElement);
+	if (iter == unificationMap.end())
+	{
+		unifyGroup.push_back(newElement);
+		unificationMap.insert({newElement, unifyTo});
+	}
+	else if (iter->second != unifyTo)
+	{
+		auto& moveFrom = referenceGroups.at(iter->second);
+		for (TypeVariable tv : moveFrom)
+		{
+			unificationMap[tv] = unifyTo;
+		}
+		unifyGroup.insert(unifyGroup.end(), moveFrom.begin(), moveFrom.end());
+		moveFrom.clear();
+	}
+}
+
+void SolverTypeReferences::printGroup(llvm::raw_ostream &os, UnifiedReference group) const
+{
+	if (group >= size())
+	{
+		assert(false);
+		return;
+	}
+	
+	os << '<';
+	auto& ref = referenceGroups[group];
+	auto iter = ref.begin();
+	auto end = ref.end();
+	if (iter != end)
+	{
+		os << *iter;
+		++iter;
+		while (iter != end)
+		{
+			os << ", " << *iter;
+			++iter;
+		}
+	}
+	os << '>';
+}
+
 #pragma mark - Solver State
-SolverState::SolverState(const SolverConstraints& constraints, NOT_NULL(SolverState) parent)
-: constraints(constraints), referenceGroups(parent->referenceGroups), specializations(parent->specializations), parent(parent)
+SolverState::SolverState(NOT_NULL(SolverState) parent, const SolverConstraints& constraints)
+: pool(parent->pool), constraints(constraints), references(parent->references), specializations(parent->specializations), parent(parent)
 {
 }
 
-SolverState::SolverState(const InferenceContext::ConstraintList& constraints)
-: constraints(constraints), parent(nullptr)
+SolverState::SolverState(DumbAllocator& pool, SolverTypeReferences& references, const InferenceContext::ConstraintList& constraints)
+: pool(pool), constraints(constraints), references(references), parent(nullptr)
 {
 }
 
@@ -230,46 +273,7 @@ bool SolverState::addSpecializationRelationship(UnifiedReference subtype, Unifie
 
 bool SolverState::unifyReferences(UnifiedReference unifyTo, TypeVariable newElement)
 {
-	auto& unifyGroup = referenceGroups.at(unifyTo);
-	auto iter = unificationMap.find(newElement);
-	if (iter == unificationMap.end())
-	{
-		unifyGroup.push_back(newElement);
-		unificationMap.insert({newElement, unifyTo});
-	}
-	else
-	{
-		if (iter->second != unifyTo)
-		{
-			if (auto boundType = chainFind(&SolverState::boundTypes, iter->second))
-			if (!bindType(unifyTo, **boundType))
-			{
-				return false;
-			}
-			
-			if (auto general = chainFind(&SolverState::mostGeneralBounds, iter->second))
-			if (!tightenGeneralBound(unifyTo, **general))
-			{
-				return false;
-			}
-			
-			if (auto specific = chainFind(&SolverState::mostSpecificBounds, iter->second))
-			if (!tightenSpecificBound(unifyTo, **specific))
-			{
-				return false;
-			}
-			
-			// Specializations should have been adjusted now that the bounds have been tightened.
-			
-			auto& moveFrom = referenceGroups.at(iter->second);
-			for (TypeVariable tv : moveFrom)
-			{
-				unificationMap[tv] = unifyTo;
-			}
-			unifyGroup.insert(unifyGroup.end(), moveFrom.begin(), moveFrom.end());
-			moveFrom.clear();
-		}
-	}
+	references.unify(unifyTo, newElement);
 	return true;
 }
 
@@ -281,16 +285,7 @@ bool SolverState::bindType(tie::UnifiedReference type, const tie::Type &bound)
 
 UnifiedReference SolverState::getUnifiedReference(TypeVariable tv)
 {
-	if (const UnifiedReference* ref = chainFind(&SolverState::unificationMap, tv))
-	{
-		return *ref;
-	}
-	
-	size_t index = referenceGroups.size();
-	referenceGroups.emplace_back();
-	referenceGroups.back().push_back(tv);
-	unificationMap.insert({tv, index});
-	return index;
+	return references.getUnifiedReference(tv);
 }
 
 const tie::Type* SolverState::getGeneralBound(UnifiedReference ref) const
@@ -320,18 +315,50 @@ Constraint* SolverState::getNextConstraint()
 
 SolverState SolverState::createSubState(const SolverConstraints& constraints)
 {
-	return SolverState(constraints, this);
+	return SolverState(this, constraints);
 }
 
 void SolverState::commit()
 {
 	assert(parent != nullptr);
 	parent->constraints = constraints;
-	parent->referenceGroups = referenceGroups;
-	update(parent->unificationMap, unificationMap);
-	update(parent->mostGeneralBounds, mostGeneralBounds);
-	update(parent->mostSpecificBounds, mostSpecificBounds);
-	parent->specializations.swap(specializations);
+	
+	bool success = update(mostGeneralBounds, *parent, &SolverState::tightenGeneralBound);
+	assert(success);
+	
+	success = update(mostGeneralBounds, *parent, &SolverState::tightenSpecificBound);
+	assert(success);
+}
+
+bool SolverState::unionMerge(const tie::SolverState &that)
+{
+	assert(mostGeneralBounds.size() == that.mostGeneralBounds.size());
+	assert(mostSpecificBounds.size() == that.mostSpecificBounds.size());
+	
+	// referenceGroups and unificationMap should be identical (add an assert?)
+	
+	BoundMapSelector mapSelectors[] = { &SolverState::mostGeneralBounds, &SolverState::mostSpecificBounds };
+	for (auto selector : mapSelectors)
+	{
+		auto& thisMap = this->*selector;
+		const auto& thatMap = that.*selector;
+		for (const auto& pair : thatMap)
+		{
+			auto iter = thisMap.find(pair.first);
+			if (iter != thisMap.end())
+			{
+				iter->second = &UnionType::join(pool, *iter->second, *pair.second);
+			}
+			else
+			{
+				// If iter == end, then we have a constraint OR'd with "anything", so discard it.
+				// This is probably caused by a bad constraint definition though, so stop here to warn of the problem.
+				assert(false);
+			}
+		}
+	}
+	
+	return true;
 }
 
 void SolverState::dump() const
@@ -340,7 +367,7 @@ void SolverState::dump() const
 	rerr << "Non-recursive dump\n"; // does not take into account parent SolverState
 	
 	rerr << "\nBounds:\n";
-	for (UnifiedReference i = 0; i < referenceGroups.size(); ++i)
+	for (UnifiedReference i = 0; i < references.size(); ++i)
 	{
 		auto general = mostGeneralBounds.find(i);
 		auto specific = mostSpecificBounds.find(i);
@@ -353,7 +380,7 @@ void SolverState::dump() const
 				rerr << " : ";
 			}
 			
-			printGroup(rerr, referenceGroups[i]);
+			references.printGroup(rerr, i);
 			
 			if (general != mostGeneralBounds.end())
 			{
@@ -366,10 +393,11 @@ void SolverState::dump() const
 }
 
 #pragma mark - Solver
-Solver::Solver(const InferenceContext& context)
-: context(context)
+Solver::Solver(DumbAllocator& pool, const InferenceContext& context)
+: pool(pool)
+, context(context)
 , constraints(sorted<InferenceContext::ConstraintList>(context.getConstraints(), ConstraintOrdering()))
-, rootState(constraints)
+, rootState(pool, typeReferences, constraints)
 , currentState(&rootState)
 {
 	for (TypeVariable v = 0; v < context.getVariableCount(); v++)
@@ -436,7 +464,45 @@ bool Solver::process(const ConjunctionConstraint& constraint)
 
 bool Solver::process(const DisjunctionConstraint& constraint)
 {
-	llvm_unreachable("implement me");
+	assert(constraint.constraints.size() > 0);
+	
+	deque<SolverState> childStates;
+	deque<Constraint*> singleConstraint { nullptr };
+	for (NOT_NULL(Constraint) disjunct : constraint.constraints)
+	{
+		singleConstraint[0] = disjunct;
+		SolverConstraints constraintList(singleConstraint);
+		childStates.push_back(currentState->createSubState(constraintList));
+		TemporarySwap<SolverState*> swap(currentState, &childStates.back());
+		if (!solve())
+		{
+			childStates.pop_back();
+		}
+	}
+	
+	if (childStates.size() == 0)
+	{
+		return false;
+	}
+	else if (childStates.size() == 1)
+	{
+		childStates.front().commit();
+	}
+	else
+	{
+		auto stateIter = childStates.begin();
+		auto stateIterEnd = childStates.end();
+		SolverState& state = *stateIter;
+		for (++stateIter; stateIter != stateIterEnd; ++stateIter)
+		{
+			if (!state.unionMerge(*stateIter))
+			{
+				return false;
+			}
+		}
+	}
+	
+	return true;
 }
 
 bool Solver::solve()

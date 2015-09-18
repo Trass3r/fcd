@@ -136,6 +136,7 @@ namespace tie
 						case Disjunction: os << '|'; break;
 						default: assert(false);
 					}
+					os << ' ';
 					(*iter)->print(os);
 				}
 				os << ')';

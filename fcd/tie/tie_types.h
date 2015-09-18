@@ -132,6 +132,8 @@ namespace tie
 			return that->getCategory() == Union;
 		}
 		
+		static UnionType& join(DumbAllocator& allocator, const Type& a, const Type& b);
+		
 		UnionType(DumbAllocator& allocator)
 		: CompositeType(Union, allocator)
 		{
