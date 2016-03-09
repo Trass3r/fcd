@@ -10,6 +10,8 @@
 #include "elf_executable.h"
 #include "executable_errors.h"
 
+#include <llvm/ADT/ArrayRef.h>
+#include <llvm/ADT/StringMap.h>
 #include <llvm/Support/PrettyStackTrace.h>
 #include <llvm/Support/raw_ostream.h>
 
@@ -539,7 +541,7 @@ namespace
 			}
 			return nullptr;
 		}
-		
+
 		virtual StubTargetQueryResult doGetStubTarget(uint64_t address, string& libraryName, string& into) const override
 		{
 			auto iter = stubTargets.find(address);
@@ -740,12 +742,28 @@ namespace
 					}
 				}
 			}
-			
+
 			if (eh->shentsize == sizeof (Elf_Shdr))
 			{
+				const Elf_Shdr& sectionStringtableHeader = bounded_cast<Elf_Shdr>(begin, end, eh->shoff)[eh->shstrndx];
+				const uint8_t* sectionStringtable = bounded_cast<uint8_t>(begin, end, sectionStringtableHeader.offset);
+				const uint8_t* sectionStringtableEnd = sectionStringtable + sectionStringtableHeader.size;
+
 				for (const auto& sh : bounded_cast<Elf_Shdr>(begin, end, eh->shoff, eh->shnum))
 				{
 					sections.push_back(&sh);
+					StringRef name = nameLookup(sectionStringtable, sectionStringtableEnd, sh.name);
+					if (!name.empty())
+					{
+						const uint8_t* ptr = nullptr;
+						if (sh.type != SHT_NOBITS)
+							ptr = bounded_cast<uint8_t>(begin, end, sh.offset);
+						SectionInfo info;
+						info.data = ArrayRef<uint8_t>(ptr, sh.size);
+						info.vaddr = sh.addr;
+						executable->sections[name] = info;
+					}
+
 					if (sh.type == SHT_SYMTAB)
 					{
 						symtabs.push_back(&sh);

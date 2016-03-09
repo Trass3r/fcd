@@ -12,6 +12,7 @@
 
 #include "entry_points.h"
 
+#include <llvm/ADT/ArrayRef.h>
 #include <llvm/Support/ErrorOr.h>
 
 #include <memory>
@@ -24,6 +25,12 @@ struct StubInfo
 {
 	const std::string* sharedObject;
 	std::string name;
+};
+
+struct SectionInfo
+{
+	llvm::ArrayRef<uint8_t> data;
+	uint64_t vaddr = 0; // virtual address
 };
 
 class ExecutableFactory;
@@ -44,6 +51,8 @@ protected:
 		ResolvedInTwoLevelNamespace,
 	};
 	
+	llvm::StringMap<SectionInfo> sections;
+
 	inline Executable(const uint8_t* begin, const uint8_t* end)
 	: dataBegin(begin), dataEnd(end)
 	{
@@ -66,7 +75,9 @@ public:
 
 	//! map virtual address to file offset
 	virtual const uint8_t* map(uint64_t address) const = 0;
-	
+	//! returns section info if it exists or nullptr otherwise
+	const SectionInfo* getSectionInfo(llvm::StringRef name) const;
+
 	virtual std::vector<uint64_t> getVisibleEntryPoints() const override final;
 	virtual const SymbolInfo* getInfo(uint64_t address) const override final;
 	const StubInfo* getStubTarget(uint64_t address) const;

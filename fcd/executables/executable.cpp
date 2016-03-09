@@ -192,6 +192,15 @@ string Executable::getTargetTriple() const
 	return "unknown-unknown-unknown";
 }
 
+const SectionInfo* Executable::getSectionInfo(StringRef name) const
+{
+	auto it = sections.find(name);
+	if (it == sections.end())
+		return nullptr;
+
+	return &it->getValue();
+}
+
 vector<uint64_t> Executable::getVisibleEntryPoints() const
 {
 	vector<uint64_t> result;
