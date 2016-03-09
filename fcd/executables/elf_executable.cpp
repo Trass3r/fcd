@@ -115,12 +115,19 @@ namespace
 		PT_DYNAMIC = 2,
 	};
 
-	enum ElfShdrType
+	enum ElfShdrType : uint32_t
 	{
 		SHT_PROGBITS = 1,
 		SHT_SYMTAB = 2,
 		SHT_STRTAB = 3,
+		SHT_RELA   = 4,
+		SHT_DYNAMIC= 6,
+		SHT_NOBITS = 8,
+		SHT_REL    = 9,
 		SHT_DYNSYM = 11,
+		SHT_INIT_ARRAY = 14,
+		SHT_FINI_ARRAY = 15,
+		SHT_PREINIT_ARRAY = 16
 	};
 
 	enum ElfSymbolType
@@ -520,14 +527,14 @@ namespace
 			snprintf(type, sizeof type, "ELF %02zu %cE", Types::bits, endianCheck.c[0] == 0x02 ? 'B' : 'L');
 			return type;
 		}
-		
-		virtual const uint8_t* map(uint64_t address) const override
+
+		const uint8_t* map(uint64_t address) const override
 		{
-			for (auto iter = segments.rbegin(); iter != segments.rend(); iter++)
+			for (const Segment& segment : segments)
 			{
-				if (address >= iter->vbegin && address < iter->vend)
+				if (address >= segment.vbegin && address < segment.vend)
 				{
-					return iter->fbegin + (address - iter->vbegin);
+					return segment.fbegin + (address - segment.vbegin);
 				}
 			}
 			return nullptr;
@@ -571,11 +578,12 @@ namespace
 		xword align;
 	};
 
+	// section header
 	template<>
 	struct ElfExecutable<Elf32Types>::Elf_Shdr
 	{
 		word name;
-		word type;
+		ElfShdrType type;
 		word flags;
 		addr addr;
 		off offset;
@@ -589,16 +597,16 @@ namespace
 	template<>
 	struct ElfExecutable<Elf64Types>::Elf_Shdr
 	{
-		word name;
-		word type;
-		xword flags;
-		addr addr;
-		off offset;
+		word name;       // byte offset in the section header string table section
+		ElfShdrType type;
+		xword flags;     // e.g. SHF_WRITE
+		addr addr;       // virtual address
+		off offset;      // byte offset in the file unless SHT_NOBITS
 		xword size;
-		word link;
-		word info;
-		xword addralign;
-		xword entsize;
+		word link;       // section header table index link
+		word info;       // extra info
+		xword addralign; // addr alignment
+		xword entsize;   // entry size for e.g. symbol tables
 	};
 
 	template<>

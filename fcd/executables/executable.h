@@ -63,7 +63,8 @@ public:
 	
 	inline const uint8_t* begin() const { return dataBegin; }
 	inline const uint8_t* end() const { return dataEnd; }
-	
+
+	//! map virtual address to file offset
 	virtual const uint8_t* map(uint64_t address) const = 0;
 	
 	virtual std::vector<uint64_t> getVisibleEntryPoints() const override final;
