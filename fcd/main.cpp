@@ -460,6 +460,43 @@ namespace
 	
 			// Perform early optimizations to make the module suitable for analysis
 			auto module = transl.take();
+
+			auto codesection = executable.getSectionInfo(".text");
+			auto rosection   = executable.getSectionInfo(".rodata");
+			auto rwsection   = executable.getSectionInfo(".data");
+			auto bsssection  = executable.getSectionInfo(".bss");
+
+			{
+			Type* itype = IntegerType::get(llvm, 64);
+			Constant* codeVAi = ConstantInt::get(itype, codesection->vaddr);
+			auto codeVA = new GlobalVariable(*module, itype, true, GlobalVariable::PrivateLinkage, codeVAi, ".codeVA");
+
+			auto rodataData = llvm::ConstantDataArray::get(llvm, rosection->data);
+			auto rodata = new GlobalVariable(*module, rodataData->getType(), true, GlobalVariable::PrivateLinkage, rodataData, ".rodata");
+			rodata->setAlignment(32);
+			rodata->setUnnamedAddr(true);
+
+			Constant* roDataVAi = ConstantInt::get(itype, rosection->vaddr);
+			auto rodataVA = new GlobalVariable(*module, itype, true, GlobalVariable::PrivateLinkage, roDataVAi, ".rodataVA");
+			rodataVA->setAlignment(8);
+
+			auto dataData = llvm::ConstantDataArray::get(llvm, rwsection->data);
+			auto data = new GlobalVariable(*module, dataData->getType(), false, GlobalVariable::PrivateLinkage, dataData, ".data");
+			data->setAlignment(32);
+
+			Constant* dataVAi = ConstantInt::get(itype, rwsection->vaddr);
+			auto dataVA = new GlobalVariable(*module, itype, true, GlobalVariable::PrivateLinkage, dataVAi, ".dataVA");
+			dataVA->setAlignment(8);
+
+			ArrayType* bssArrayType = ArrayType::get(IntegerType::get(llvm, 8), bsssection->data.size());
+			auto bss = new GlobalVariable(*module, bssArrayType, false, GlobalVariable::PrivateLinkage, ConstantAggregateZero::get(bssArrayType), ".bss");
+			bss->setAlignment(64);
+			bss->setUnnamedAddr(true);
+
+			Constant* bssVAi = ConstantInt::get(itype, bsssection->vaddr);
+			auto bssVA = new GlobalVariable(*module, itype, true, GlobalVariable::PrivateLinkage, bssVAi, ".bssVA");
+			}
+
 			legacy::PassManager phaseOne = createBasePassManager();
 			phaseOne.add(createExternalAAWrapperPass(&Main::aliasAnalysisHooks));
 			phaseOne.add(createDeadCodeEliminationPass());
