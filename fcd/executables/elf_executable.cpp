@@ -690,6 +690,13 @@ namespace
 		string name;
 	};
 
+	static StringRef nameLookup(const uint8_t* strtab, const uint8_t* end, uint32_t nameIdx)
+	{
+		const char* ptr = bounded_cast<char>(strtab, end, nameIdx);
+		size_t len = ptr ? strnlen(ptr, size_t(reinterpret_cast<const char*>(end) - ptr)) : 0;
+		return StringRef(ptr, len);
+	}
+
 	template<typename Types>
 	ErrorOr<unique_ptr<ElfExecutable<Types>>> ElfExecutable<Types>::parse(const uint8_t* begin, const uint8_t* end)
 	{
@@ -820,15 +827,14 @@ namespace
 					// Fortunately, Elf_Rela is merely an extension of Elf_Rel and we can treat both as Elf_Rel as long
 					// as we correctly increment the pointer.
 					uint64_t relocSize = relType == DT_REL ? sizeof (Elf_Rel) : sizeof (Elf_Rela);
+					StringRef name;
 					for (uint64_t relocIter = 0; relocIter < dynEnt[DT_PLTRELSZ]->value; relocIter += relocSize)
 					{
 						if (const auto* reloc = bounded_cast<Elf_Rel>(relocBase, end, relocIter))
 						if (const auto* symbol = bounded_cast<Elf_Sym>(symtab, end, sizeof (Elf_Sym) * reloc->symbol()))
-						if (const char* nameBegin = bounded_cast<char>(strtab, end, symbol->name))
+						if ((name = nameLookup(strtab, end, symbol->name)), !name.empty())
 						{
-							auto maxSize = static_cast<size_t>(end - reinterpret_cast<const uint8_t*>(nameBegin));
-							const char* nameEnd = nameBegin + strnlen(nameBegin, maxSize);
-							executable->stubTargets[reloc->offset] = string(nameBegin, nameEnd);
+							executable->stubTargets[reloc->offset] = name;
 						}
 					}
 				}
@@ -839,15 +845,14 @@ namespace
 			if (dynEnt[DT_RELA] && dynEnt[DT_RELASZ] && dynEnt[DT_RELAENT] && dynEnt[DT_RELAENT]->value == sizeof (Elf_Rela))
 			if (const uint8_t* relocBase = executable->map(dynEnt[DT_RELA]->address))
 			{
+				StringRef name;
 				for (uint64_t relocIter = 0; relocIter < dynEnt[DT_RELASZ]->value; relocIter += sizeof (Elf_Rela))
 				{
 					if (const auto* reloc = bounded_cast<Elf_Rel>(relocBase, end, relocIter))
 					if (const auto* symbol = bounded_cast<Elf_Sym>(symtab, end, sizeof (Elf_Sym) * reloc->symbol()))
-					if (const char* nameBegin = bounded_cast<char>(strtab, end, symbol->name))
+					if ((name = nameLookup(strtab, end, symbol->name)), !name.empty())
 					{
-						auto maxSize = static_cast<size_t>(end - reinterpret_cast<const uint8_t*>(nameBegin));
-						const char* nameEnd = nameBegin + strnlen(nameBegin, maxSize);
-						executable->stubTargets[reloc->offset] = string(nameBegin, nameEnd);
+						executable->stubTargets[reloc->offset] = name;
 					}
 				}
 			}
@@ -881,22 +886,10 @@ namespace
 					continue;
 				}
 				
-				const char* nameBegin = nullptr;
-				if (sym.name != 0)
-				{
-					nameBegin = bounded_cast<char>(strtab, end, sym.name);
-				}
-				
-				const char* nameEnd = nameBegin;
-				if (nameBegin != nullptr)
-				{
-					auto maxSize = static_cast<size_t>(reinterpret_cast<const char*>(end) - nameBegin);
-					nameEnd = nameBegin + strnlen(nameBegin, maxSize);
-				}
-				
 				auto& symInfo = executable->getSymbol(sym.value);
 				symInfo.virtualAddress = sym.value;
-				symInfo.name = string(nameBegin, nameEnd);
+				if (sym.name != 0)
+					symInfo.name = nameLookup(strtab, end, sym.name);
 			}
 		}
 		
