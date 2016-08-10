@@ -34,7 +34,7 @@ enable_language(ASM)
 add_library(emu OBJECT ${emuasms})
 
 ### fcd ###
-set(subdirs fcd/ fcd/ast fcd/callconv fcd/clang fcd/codegen fcd/cpu fcd/executables fcd/symbols)
+set(subdirs fcd/ fcd/ast fcd/callconv fcd/clang fcd/codegen fcd/compiler fcd/cpu fcd/executables fcd/symbols)
 set(pythonbindingsfile "${CMAKE_CURRENT_BINARY_DIR}/bindings.cpp")
 set(subdirs ${subdirs} fcd/python)
 add_custom_command(OUTPUT ${pythonbindingsfile}
