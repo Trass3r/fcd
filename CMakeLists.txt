@@ -6,6 +6,7 @@ if (NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 	message(SEND_ERROR "clang is required to build")
 endif()
 
+set(EXTRA_EMULATOR_FLAGS "-gline-tables-only" CACHE STRING "additional compilation flags for the emulator code")
 set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_CXX_STANDARD 14)
 
@@ -23,7 +24,7 @@ set(INCBIN_TEMPLATE ${CMAKE_SOURCE_DIR}/fcd/cpu/incbin.${CMAKE_SYSTEM_NAME}.tpl)
 foreach(emulatorsource ${emulatorsources})
 	string(REGEX REPLACE ".+/([^/]+)\.emulator\.cpp" "\\1" emulator_isa "${emulatorsource}")
 	add_custom_command(OUTPUT "${CMAKE_BINARY_DIR}/${emulator_isa}.emulator.s"
-	                   COMMAND "${CMAKE_CXX_COMPILER}" -c -emit-llvm --std=gnu++14 -O3 "${emulatorsource}" -o "${CMAKE_BINARY_DIR}/${emulator_isa}.emulator.bc"
+	                   COMMAND "${CMAKE_CXX_COMPILER}" -c -emit-llvm --std=gnu++14 -O3 ${EXTRA_EMULATOR_FLAGS} "${emulatorsource}" -o "${CMAKE_BINARY_DIR}/${emulator_isa}.emulator.bc"
 	                   COMMAND sed -e "s/{CPU}/${emulator_isa}/" ${INCBIN_TEMPLATE} > "${CMAKE_BINARY_DIR}/${emulator_isa}.emulator.s"
 	                   DEPENDS "${emulatorsource}"
 	                   IMPLICIT_DEPENDS CXX "${emulatorsource}"
