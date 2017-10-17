@@ -66,7 +66,7 @@ Instruction* TargetInfo::getRegister(llvm::Value *registerStruct, const TargetRe
 		currentType = dyn_cast<CompositeType>(currentType->getTypeAtIndex(offset));
 	}
 	
-	Instruction* result = GetElementPtrInst::CreateInBounds(registerStruct, indices, "", &insertionPoint);
+	Instruction* result = GetElementPtrInst::CreateInBounds(registerStruct, indices, selected->name, &insertionPoint);
 	if (info.subOffset != 0)
 	{
 		auto intptrTy = dl->getIntPtrType(ctx);

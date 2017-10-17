@@ -46,10 +46,19 @@ namespace
 				for (auto user : users)
 				{
 					if (auto gep = dyn_cast<GetElementPtrInst>(user))
-					if (isa<StructType>(gep->getResultElementType()))
 					{
-						fixGep(*gep);
-						modified = true;
+						auto tinfo = TargetInfo::getTargetInfo(*f.getParent());
+						const TargetRegisterInfo* info = tinfo->registerInfo(*gep);
+						gep->setName(info->name + "_addr");
+						for (auto gepuser : gep->users())
+							if (isa<LoadInst>(gepuser))
+								gepuser->setName(info->name);
+
+						if (isa<StructType>(gep->getResultElementType()))
+						{
+							fixGep(*gep);
+							modified = true;
+						}
 					}
 				}
 			}
