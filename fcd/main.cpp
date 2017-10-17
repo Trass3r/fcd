@@ -475,7 +475,7 @@ namespace
 			auto rodataData = llvm::ConstantDataArray::get(llvm, rosection->data);
 			auto rodata = new GlobalVariable(*module, rodataData->getType(), true, GlobalVariable::PrivateLinkage, rodataData, ".rodata");
 			rodata->setAlignment(32);
-			rodata->setUnnamedAddr(true);
+			rodata->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
 
 			Constant* roDataVAi = ConstantInt::get(itype, rosection->vaddr);
 			auto rodataVA = new GlobalVariable(*module, itype, true, GlobalVariable::PrivateLinkage, roDataVAi, ".rodataVA");
@@ -492,7 +492,7 @@ namespace
 			ArrayType* bssArrayType = ArrayType::get(IntegerType::get(llvm, 8), bsssection->data.size());
 			auto bss = new GlobalVariable(*module, bssArrayType, false, GlobalVariable::PrivateLinkage, ConstantAggregateZero::get(bssArrayType), ".bss");
 			bss->setAlignment(64);
-			bss->setUnnamedAddr(true);
+			bss->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
 
 			Constant* bssVAi = ConstantInt::get(itype, bsssection->vaddr);
 			auto bssVA = new GlobalVariable(*module, itype, true, GlobalVariable::PrivateLinkage, bssVAi, ".bssVA");
