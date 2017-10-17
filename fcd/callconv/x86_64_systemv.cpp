@@ -100,7 +100,7 @@ namespace
 		// Registers in the parameter set that are written to before the function call are parameters for sure.
 		// Stack values that are written before a function must also be analyzed post-call to make sure that they're not
 		// read again before we can determine with certainty that they're parameters.
-		while (!mssa.isLiveOnEntryDef(access))
+		for (; !mssa.isLiveOnEntryDef(access); access = cast<MemoryUseOrDef>(access)->getDefiningAccess())
 		{
 			if (isa<MemoryPhi>(access))
 			{
@@ -119,71 +119,68 @@ namespace
 			// TODO: this check is only *almost* good. The right thing to do would be to make sure that the only
 			// accesses reaching from this def are other defs (with a call ending the chain). However, just checking
 			// that there is a single use is much faster, and probably good enough.
-			if (def->hasOneUse())
+			if (!def->hasOneUse())
+				continue;
+
+			auto store = dyn_cast<StoreInst>(memoryInst);
+			if (!store)
 			{
-				if (auto store = dyn_cast<StoreInst>(memoryInst))
+				// if it's not a call and it's not a store, then what is it?
+				assert(false);
+			}
+
+			auto& pointer = *store->getPointerOperand();
+			if (const TargetRegisterInfo* info = target.registerInfo(pointer))
+			{
+				// this could be a parameter register
+				if (!isParameterRegister(*info))
+					continue;
+
+				auto range = fillOut.parameters();
+				auto position = lower_bound(range.begin(), range.end(), info, [](const ValueInformation& that, const TargetRegisterInfo* i)
 				{
-					auto& pointer = *store->getPointerOperand();
-					if (const TargetRegisterInfo* info = target.registerInfo(pointer))
+					if (that.type == ValueInformation::IntegerRegister)
 					{
-						// this could be a parameter register
-						if (isParameterRegister(*info))
-						{
-							auto range = fillOut.parameters();
-							auto position = lower_bound(range.begin(), range.end(), info, [](const ValueInformation& that, const TargetRegisterInfo* i)
-							{
-								if (that.type == ValueInformation::IntegerRegister)
-								{
-									auto thatName = registerPosition(*that.registerInfo, begin(parameterRegisters), end(parameterRegisters));
-									auto iName = registerPosition(*i, begin(parameterRegisters), end(parameterRegisters));
-									return thatName < iName;
-								}
-								return false;
-							});
-							
-							// TODO: add registers in sequence up to this register
-							// (for instance, if we see a use for `rdi` and `rdx`, add `rsi`)
-							
-							if (position == range.end() || position->registerInfo != info)
-							{
-								fillOut.insertParameter(position, ValueInformation::IntegerRegister, info);
-							}
-						}
+						auto thatName = registerPosition(*that.registerInfo, begin(parameterRegisters), end(parameterRegisters));
+						auto iName = registerPosition(*i, begin(parameterRegisters), end(parameterRegisters));
+						return thatName < iName;
 					}
-					else if (md::isProgramMemory(*store))
-					{
-						// this could be a stack register
-						Value* origin = nullptr;
-						ConstantInt* offset = nullptr;
-						if (match(&pointer, m_BitCast(m_Add(m_Value(origin), m_ConstantInt(offset)))))
-						if (const TargetRegisterInfo* rsp = target.registerInfo(*origin))
-						if (rsp->name == "rsp")
-						{
-							// stack parameter
-							auto range = fillOut.parameters();
-							auto position = lower_bound(range.begin(), range.end(), offset->getLimitedValue(), [](const ValueInformation& that, uint64_t offset)
-							{
-								return that.type < ValueInformation::Stack || that.frameBaseOffset < offset;
-							});
-							
-							// TODO: add/extend values up to this stack offset.
-							// If we see a parameter at +0 and a parameter at +16, then we have missing values.
-							
-							if (position == range.end() || position->registerInfo != info)
-							{
-								fillOut.insertParameter(position, ValueInformation::IntegerRegister, info);
-							}
-						}
-					}
-				}
-				else
+					return false;
+				});
+				
+				// TODO: add registers in sequence up to this register
+				// (for instance, if we see a use for `rdi` and `rdx`, add `rsi`)
+				
+				if (position == range.end() || position->registerInfo != info)
 				{
-					// if it's not a call and it's not a store, then what is it?
-					assert(false);
+					fillOut.insertParameter(position, ValueInformation::IntegerRegister, info);
 				}
 			}
-			
-			access = useOrDef->getDefiningAccess();
+			else if (md::isProgramMemory(*store))
+			{
+				// this could be a stack register
+				Value* origin = nullptr;
+				ConstantInt* offset = nullptr;
+				if (match(&pointer, m_BitCast(m_Add(m_Value(origin), m_ConstantInt(offset)))))
+				if (const TargetRegisterInfo* rsp = target.registerInfo(*origin))
+				if (rsp->name == "rsp")
+				{
+					// stack parameter
+					auto range = fillOut.parameters();
+					auto position = lower_bound(range.begin(), range.end(), offset->getLimitedValue(), [](const ValueInformation& that, uint64_t offset)
+					{
+						return that.type < ValueInformation::Stack || that.frameBaseOffset < offset;
+					});
+					
+					// TODO: add/extend values up to this stack offset.
+					// If we see a parameter at +0 and a parameter at +16, then we have missing values.
+					
+					if (position == range.end() || position->registerInfo != info)
+					{
+						fillOut.insertParameter(position, ValueInformation::IntegerRegister, info);
+					}
+				}
+			}
 		}
 	}
 	
@@ -363,9 +360,10 @@ bool CallingConvention_x86_64_systemv::analyzeFunction(ParameterRegistry &regist
 		auto range = geps.equal_range(regInfo);
 		for (auto iter = range.first; iter != range.second; ++iter)
 		{
-			bool hasStore = any_of(iter->second->use_begin(), iter->second->use_end(), [](Use& use)
+			bool hasStore = any_of(iter->second->user_begin(), iter->second->user_end(),
+			[](const User* user)
 			{
-				return isa<StoreInst>(use.getUser());
+				return isa<StoreInst>(user);
 			});
 			
 			if (hasStore)
