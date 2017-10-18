@@ -69,7 +69,7 @@ namespace
 	cl::list<unsigned long long> additionalEntryPoints("other-entry", cl::desc("Add entry point from virtual address (can be used multiple times)"), cl::CommaSeparated, whitelist());
 	cl::list<bool> partialDisassembly("partial", cl::desc("Only decompile functions specified with --other-entry"), whitelist());
 	cl::list<bool> inputIsModule("module-in", cl::desc("Input file is a LLVM module"), whitelist());
-	cl::list<bool> outputIsModule("module-out", cl::desc("Output LLVM module"), whitelist());
+	cl::opt<int> outputIsModule("module-out", cl::desc("Output LLVM module"), whitelist());
 	
 	cl::list<string> additionalPasses("opt", cl::desc("Insert LLVM optimization pass; a pass name ending in .py is interpreted as a Python script. Requires default pass pipeline."), whitelist());
 	cl::opt<string> customPassPipeline("opt-pipeline", cl::desc("Customize pass pipeline. Empty string lets you order passes through $EDITOR; otherwise, must be a whitespace-separated list of passes."), cl::init("default"), whitelist());
@@ -110,9 +110,9 @@ namespace
 		return optCount<moduleInCount>(inputIsModule);
 	}
 	
-	inline int moduleOutCount()
+	inline int moduleOutValue()
 	{
-		return optCount<moduleOutCount>(outputIsModule);
+		return outputIsModule;
 	}
 	
 	void pruneOptionList(StringMap<cl::Option*>& list)
@@ -799,7 +799,7 @@ int main(int argc, char** argv)
 #endif
 
 	// if we want module output, this is where we stop
-	if (moduleOutCount() == 1)
+	if (moduleOutValue() == 1)
 	{
 		dumpAnnotatedModule(*module);
 		return 0;
@@ -813,7 +813,7 @@ int main(int argc, char** argv)
 		}
 	}
 	
-	if (moduleOutCount() > 1)
+	if (moduleOutValue() > 1)
 	{
 		dumpAnnotatedModule(*module);
 		return 0;
