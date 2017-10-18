@@ -86,6 +86,9 @@ Function& ArgumentRecovery::createParameterizedFunction(Function& base, const Ca
 	
 	newFunc->takeName(&base);
 	newFunc->copyAttributesFrom(&base);
+	// drop parameter and return attributes as these change
+	// FIXME: we do we even create a new one
+	newFunc->setAttributes(newFunc->getAttributes().getFnAttributes());
 	md::copy(base, *newFunc);
 	
 	// set parameter names

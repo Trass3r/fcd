@@ -18,8 +18,26 @@ Function* AddressToFunction::insertFunction(uint64_t address)
 	char defaultName[] = "func_0000000000000000";
 	snprintf(defaultName, sizeof defaultName, "func_%" PRIx64, address);
 	
-	// XXX: do we really want external linkage? this has an impact on possible optimizations
+	// TODO: can't use internal currently as everything gets removed
 	Function* fn = Function::Create(&fnType, GlobalValue::ExternalLinkage, defaultName, &module);
+	// TODO: sret? pointer parameter specifies the address of a structure that is the return value of the function in the source program. This pointer must be guaranteed by the caller to be valid: loads and stores to the structure may be assumed by the callee not to trap and to be properly aligned
+	// TODO: returned? 
+	fn->addAttributes(1, AttributeSet::get(module.getContext(), 1, { Attribute::NoAlias, Attribute::NoCapture, Attribute::NonNull }));
+	// FIXME: pointerelementtype will disappear
+	fn->addDereferenceableAttr(1, module.getDataLayout().getTypeAllocSize((*fnType.param_begin())->getPointerElementType()));
+
+	// FIXME: try to prevent it from being deleted too early, remove later?
+	/*
+	PointerType* int8ptr = PointerType::get(IntegerType::get(module.getContext(), 8), 0);
+	ArrayType* usedArray = ArrayType::get(int8ptr, 1);
+	GlobalVariable* gvar_array_llvm_used = new GlobalVariable(module, usedArray, false, GlobalValue::AppendingLinkage,
+	        ConstantArray::get(usedArray, { ConstantExpr::getBitCast(fn, int8ptr) }),
+	"llvm.compiler.used");
+	gvar_array_llvm_used->setSection("llvm.metadata");
+	*/
+
+	// TODO: not sure that even holds
+	//fn->addFnAttr(Attribute::ArgMemOnly);
 	md::setVirtualAddress(*fn, address);
 	md::setArgumentsRecoverable(*fn);
 	return fn;
@@ -64,7 +82,7 @@ Function* AddressToFunction::createFunction(uint64_t address)
 	}
 	
 	// reset prototype status (and everything else, really)
-	result->deleteBody();
+	result->dropAllReferences();
 	BasicBlock::Create(result->getContext(), "entry", result);
 	md::setVirtualAddress(*result, address);
 	md::setArgumentsRecoverable(*result);
