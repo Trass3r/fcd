@@ -41,7 +41,7 @@ namespace
 		bool isIntrinsic(StringRef name)
 		{
 			static unordered_set<string> x86Intrins = {
-				"x86_jump_intrin", "x86_call_intrin", "x86_ret_intrin", "x86_read_mem", "x86_write_mem"
+				"x86_jump_intrin", "x86_call_intrin", "x86_ret_intrin", "x86_read_mem", "x86_write_mem", "x86_read_source_operand"
 			};
 			
 			return x86Intrins.count(name) != 0;
@@ -118,8 +118,68 @@ namespace
 				remainder->eraseFromParent();
 				ReturnInst::Create(parent->getContext(), parent);
 			}
+			// uint64_t x86_read_source_operand(cs_x86_op* source, x86_regs* regs)
+			else if (name == "x86_read_source_operand")
+			{
+				Value* source = translated->getOperand(0);
+				Value* regs = translated->getOperand(1);
+
+				if (auto gep = dyn_cast<ConstantExpr>(source))
+				{
+					assert(gep->isGEPWithNoNotionalOverIndexing());
+					if (auto global = dyn_cast<GlobalVariable>(gep->getOperand(0)))
+					{
+						if (auto struc = dyn_cast<ConstantStruct>(global->getInitializer()))
+						{
+						}
+						if (auto array = dyn_cast<ConstantDataArray>(global->getInitializer()))
+						{
+						}
+					}
+				}
+				/*
+				switch (source->type)
+				{
+				case X86_OP_IMM:
+						return static_cast<uint64_t>(source->imm);
+						break;
+
+				case X86_OP_REG:
+						return x86_read_reg(regs, source);
+						break;
+
+				case X86_OP_MEM:
+						return x86_read_mem(regs, source);
+						break;
+						*/
+				Instruction* replacement = nullptr;
+				//module.getOrInsertFunction(intrin->getName(), intrin->getFunctionType(), intrin->getAttributes());
+				translated->replaceAllUsesWith(replacement);
+				translated->eraseFromParent();
+			}
+			// uint64_t x86_read_destination_operand(cs_x86_op* destination, x86_regs* regs)
+			else if (name == "x86_read_destination_operand")
+			{
+				/*switch (destination->type)
+						{
+						case X86_OP_REG:
+								return x86_read_reg(regs, destination);
+								break;
+
+						case X86_OP_MEM:
+								return x86_read_mem(regs, destination);
+								break;
+						default:
+								x86_assertion_failure("trying to read destination from FP or invalid operand");
+				}
+				*/
+				Value* destination = translated->getOperand(0);
+				Value* regs = translated->getOperand(1);
+			}
+			// x86_read_mem(uint64_t address, size_t size)
 			else if (name == "x86_read_mem")
 			{
+				// actually LoadInst
 				Value* segment = translated->getOperand(0);
 				Value* intptr = translated->getOperand(1);
 				Value* size = translated->getOperand(2);
@@ -150,6 +210,7 @@ namespace
 				if (value->getType() != elementType)
 				{
 					// Assumption: storeType can only be smaller than the type of storeValue
+					assert(elementType->getPrimitiveSizeInBits() < value->getType()->getPrimitiveSizeInBits());
 					value = CastInst::Create(Instruction::Trunc, value, elementType, "", translated);
 				}
 				StoreInst* storeInst = new StoreInst(value, pointer, translated);
