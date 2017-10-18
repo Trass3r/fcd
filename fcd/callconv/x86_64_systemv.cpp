@@ -129,6 +129,13 @@ namespace
 						// this could be a parameter register
 						if (isParameterRegister(*info))
 						{
+							bool isPtr = false;
+							Value* val = store->getValueOperand();
+							Value* stripped = val->stripPointerCasts();
+
+							if (auto pti = dyn_cast<PtrToIntInst>(val))
+								isPtr = true;
+
 							auto range = fillOut.parameters();
 							auto position = lower_bound(range.begin(), range.end(), info, [](const ValueInformation& that, const TargetRegisterInfo* i)
 							{
@@ -146,7 +153,7 @@ namespace
 							
 							if (position == range.end() || position->registerInfo != info)
 							{
-								fillOut.insertParameter(position, ValueInformation::IntegerRegister, info);
+								fillOut.insertParameter(position, ValueInformation::IntegerRegister, info, isPtr);
 							}
 						}
 					}

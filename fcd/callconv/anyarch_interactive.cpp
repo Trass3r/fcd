@@ -97,5 +97,5 @@ bool CallingConvention_AnyArch_Interactive::analyzeFunction(ParameterRegistry &r
 	while (cin.fail());
 	
 	bool returns = yesNoReturns == 'y' || yesNoReturns == '1';
-	return hackhack_fillFromParamInfo(function.getContext(), registry, fillOut, returns, numberOfParameters, false);
+	return hackhack_fillFromParamInfo(function.getContext(), registry, fillOut, returns, false, numberOfParameters, false);
 }

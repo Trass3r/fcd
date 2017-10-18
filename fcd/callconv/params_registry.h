@@ -34,14 +34,15 @@ struct TargetRegisterInfo;
 struct ValueInformation
 {
 	// XXX: x86_64_systemv's call site analysis relies of IntegerRegister being first and Stack being last.
-	enum StorageClass
+	enum StorageClass : uint8_t
 	{
 		IntegerRegister,
 		FloatingPointRegister,
-		Stack,
+		Stack
 	};
 	
 	StorageClass type;
+	uint8_t isPtr = false;
 	union
 	{
 		const TargetRegisterInfo* registerInfo;
@@ -54,8 +55,8 @@ struct ValueInformation
 		assert(type == Stack);
 	}
 	
-	ValueInformation(StorageClass regType, const TargetRegisterInfo* registerInfo)
-	: type(regType), registerInfo(registerInfo)
+	ValueInformation(StorageClass regType, const TargetRegisterInfo* registerInfo, bool isPtr = false)
+	: type(regType), isPtr(isPtr), registerInfo(registerInfo)
 	{
 		assert(type != Stack);
 	}

@@ -143,7 +143,7 @@ Value* ArgumentRecovery::createReturnValue(Function &function, const CallInforma
 	{
 		const auto& returnInfo = *ci.return_begin();
 		auto gep = targetInfo->getRegister(registers, *returnInfo.registerInfo, *insertionPoint);
-		result = new LoadInst(gep, "", insertionPoint);
+		result = new LoadInst(gep, returnInfo.registerInfo->name, insertionPoint);
 		
 		Type* gepElementType = cast<PointerType>(gep->getType())->getElementType();
 		if (gepElementType != returnType)
@@ -174,7 +174,9 @@ Value* ArgumentRecovery::createReturnValue(Function &function, const CallInforma
 			if (returnInfo.type == ValueInformation::IntegerRegister)
 			{
 				auto gep = targetInfo->getRegister(registers, *returnInfo.registerInfo, *insertionPoint);
-				auto loaded = new LoadInst(gep, "", insertionPoint);
+				Instruction* loaded = new LoadInst(gep, "", insertionPoint);
+				if (returnInfo.isPtr)
+					loaded = CastInst::CreateBitOrPointerCast(loaded, integer->getPointerTo(), "", insertionPoint);
 				result = InsertValueInst::Create(result, loaded, {i}, "set." + returnInfo.registerInfo->name, insertionPoint);
 				i++;
 			}
@@ -219,6 +221,10 @@ void ArgumentRecovery::updateFunctionBody(Function& oldFunction, Function& newFu
 	auto valueIter = ci.begin();
 	for (Argument& arg : newFunction.args())
 	{
+		//Value* argCast = &arg;
+		//if (!arg.getType()->isIntegerTy())
+		//	argCast = CastInst::CreateBitOrPointerCast(&arg, integer, "", insertionPoint);
+
 		if (valueIter->type == ValueInformation::IntegerRegister)
 		{
 			auto gep = targetInfo->getRegister(newRegisters, *valueIter->registerInfo, *insertionPoint);
@@ -230,13 +236,13 @@ void ArgumentRecovery::updateFunctionBody(Function& oldFunction, Function& newFu
 			auto offsetConstant = ConstantInt::get(integer, valueIter->frameBaseOffset);
 			auto offset = BinaryOperator::Create(BinaryOperator::Add, spValue, offsetConstant, "", insertionPoint);
 			auto casted = new IntToPtrInst(offset, integerPtr, "", insertionPoint);
-			new StoreInst(&arg, casted, insertionPoint);
+			new StoreInst(argCast, casted, insertionPoint);
 		}
 		else
 		{
 			llvm_unreachable("not implemented");
 		}
-		valueIter++;
+		++valueIter;
 	}
 	
 	// If the function returns, adjust return values.
@@ -264,18 +270,19 @@ FunctionType* ArgumentRecovery::createFunctionType(TargetInfo& info, const CallI
 {
 	LLVMContext& ctx = module.getContext();
 	Type* integer = Type::getIntNTy(ctx, info.getPointerSize() * CHAR_BIT);
+	Type* ptr = integer->getPointerTo();
 	
 	SmallVector<Type*, 8> parameterTypes;
 	for (const auto& param : callInfo.parameters())
 	{
 		if (param.type == ValueInformation::IntegerRegister)
 		{
-			parameterTypes.push_back(integer);
+			parameterTypes.push_back(param.isPtr ? ptr : integer);
 			parameterNames.push_back(param.registerInfo->name);
 		}
 		else if (param.type == ValueInformation::Stack)
 		{
-			parameterTypes.push_back(integer);
+			parameterTypes.push_back(param.isPtr ? ptr : integer);
 			parameterNames.emplace_back();
 			raw_string_ostream(parameterNames.back()) << "sp" << param.frameBaseOffset;
 		}
@@ -290,7 +297,7 @@ FunctionType* ArgumentRecovery::createFunctionType(TargetInfo& info, const CallI
 	{
 		if (ret.type == ValueInformation::IntegerRegister)
 		{
-			returnTypes.push_back(integer);
+			returnTypes.push_back(ret.isPtr ? ptr : integer);
 		}
 		else
 		{
@@ -343,6 +350,8 @@ CallInst* ArgumentRecovery::createCallSite(TargetInfo& targetInfo, const CallInf
 		{
 			auto registerPtr = targetInfo.getRegister(&callerRegisters, *vi.registerInfo, insertionPoint);
 			argumentValue = new LoadInst(registerPtr, vi.registerInfo->name, &insertionPoint);
+			if (vi.isPtr)
+				argumentValue = CastInst::CreateBitOrPointerCast(argumentValue, integer->getPointerTo(), "", &insertionPoint);
 		}
 		else if (vi.type == ValueInformation::Stack)
 		{
@@ -351,6 +360,8 @@ CallInst* ArgumentRecovery::createCallSite(TargetInfo& targetInfo, const CallInf
 			auto offset = BinaryOperator::Create(BinaryOperator::Add, spValue, offsetConstant, "", &insertionPoint);
 			auto casted = new IntToPtrInst(offset, integerPtr, "", &insertionPoint);
 			argumentValue = new LoadInst(casted, "", &insertionPoint);
+			if (vi.isPtr)
+				argumentValue = CastInst::CreateBitOrPointerCast(argumentValue, integer->getPointerTo(), "", &insertionPoint);
 		}
 		else
 		{
@@ -410,7 +421,7 @@ CallInst* ArgumentRecovery::createCallSite(TargetInfo& targetInfo, const CallInf
 						llvm_unreachable("received larger integer than native register size!");
 					}
 				}
-				else if (isa<PointerType>(registerValue->getType()))
+				else if (registerValue->getType()->isPointerTy())
 				{
 					registerValue = new PtrToIntInst(registerValue, integer, "", returnInsertionPoint);
 				}

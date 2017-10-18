@@ -106,11 +106,11 @@ vector<const TargetRegisterInfo*> ipaFindUsedReturns(ParameterRegistry& registry
 	return result;
 }
 
-bool hackhack_fillFromParamInfo(LLVMContext& ctx, ParameterRegistry& registry, CallInformation& info, bool returns, size_t integerLikeParameters, bool isVariadic)
+bool hackhack_fillFromParamInfo(LLVMContext& ctx, ParameterRegistry& registry, CallInformation& info, bool returns, bool returnIsPtr, size_t integerLikeParameters, bool isVariadic)
 {
 	TargetInfo& targetInfo = registry.getTargetInfo();
 	Type* intType = Type::getIntNTy(ctx, targetInfo.getPointerSize() * CHAR_BIT);
-	Type* returnType = returns ? intType : Type::getVoidTy(ctx);
+	Type* returnType = returns ? (returnIsPtr ? (Type*)intType->getPointerTo() : intType) : Type::getVoidTy(ctx);
 	vector<Type*> params(integerLikeParameters, intType);
 	FunctionType* fType = FunctionType::get(returnType, params, false);
 	
