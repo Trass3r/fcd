@@ -9,6 +9,7 @@
 
 #include "ast_passes.h"
 #include "command_line.h"
+#include "dump_annotated_module.h"
 #include "errors.h"
 #include "executable.h"
 #include "header_decls.h"
@@ -568,6 +569,7 @@ namespace
 #ifdef FCD_DEBUG
 			if (verifyModule(module, &errorOutput))
 			{
+				dumpAnnotatedModule(module);
 				// errors!
 				return false;
 			}
@@ -788,10 +790,18 @@ int main(int argc, char** argv)
 		return 1;
 	}
 	
+#ifdef FCD_DEBUG
+	if (verifyModule(*module, &errs()))
+	{
+		// errors!
+		return 1;
+	}
+#endif
+
 	// if we want module output, this is where we stop
 	if (moduleOutCount() == 1)
 	{
-		module->print(outs(), nullptr);
+		dumpAnnotatedModule(*module);
 		return 0;
 	}
 	
@@ -805,7 +815,7 @@ int main(int argc, char** argv)
 	
 	if (moduleOutCount() > 1)
 	{
-		module->print(outs(), nullptr);
+		dumpAnnotatedModule(*module);
 		return 0;
 	}
 	
