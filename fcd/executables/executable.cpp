@@ -211,19 +211,21 @@ vector<uint64_t> Executable::getVisibleEntryPoints() const
 		result.push_back(pair.second.virtualAddress);
 	}
 
-	auto* rosection   = getSectionInfo(".rodata");
-	auto* codesection = getSectionInfo(".text");
-	assert(rosection);
-	assert(codesection);
-
-	uint64_t codeStart = codesection->vaddr;
-	uint64_t codeEnd   = codeStart + codesection->data.size();
-	// FIXME: use real pointer size
-	auto pointers = ArrayRef<uint64_t>(reinterpret_cast<const uint64_t*>(rosection->data.data()), rosection->data.size()/sizeof(uint64_t));
-	for (uint64_t p : pointers)
+	auto* rosection = getSectionInfo(".rodata");
+	if (rosection)
 	{
-		if (p >= codeStart && p < codeEnd)
-			result.push_back(p);
+		auto* codesection = getSectionInfo(".text");
+		assert(codesection);
+
+		uint64_t codeStart = codesection->vaddr;
+		uint64_t codeEnd   = codeStart + codesection->data.size();
+		// FIXME: use real pointer size
+		auto pointers = ArrayRef<uint64_t>(reinterpret_cast<const uint64_t*>(rosection->data.data()), rosection->data.size()/sizeof(uint64_t));
+		for (uint64_t p : pointers)
+		{
+			if (p >= codeStart && p < codeEnd)
+				result.push_back(p);
+		}
 	}
 
 	sort(result.begin(), result.end());
