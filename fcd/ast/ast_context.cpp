@@ -107,7 +107,7 @@ class InstToExpr : public llvm::InstVisitor<InstToExpr, Expression*>
 		return ctx.expressionFor(value);
 	}
 	
-	Expression* indexIntoElement(Module& module, Expression* base, Type* type, Value* index)
+	Expression* indexIntoElement(Expression* base, Type* type, Value* index)
 	{
 		if (type->isPointerTy() || type->isArrayTy())
 		{
@@ -391,8 +391,6 @@ public:
 	
 	VISIT(ExtractValueInst)
 	{
-		Module& module = *inst.getParent()->getParent()->getParent();
-		
 		auto i64 = Type::getInt64Ty(inst.getContext());
 		auto rawIndices = inst.getIndices();
 		Type* baseType = inst.getOperand(0)->getType();
@@ -401,14 +399,13 @@ public:
 		for (unsigned i = 0; i < rawIndices.size(); ++i)
 		{
 			Type* indexedType = ExtractValueInst::getIndexedType(baseType, rawIndices.slice(0, i));
-			result = indexIntoElement(module, result, indexedType, ConstantInt::get(i64, rawIndices[i]));
+			result = indexIntoElement(result, indexedType, ConstantInt::get(i64, rawIndices[i]));
 		}
 		return result;
 	}
 	
 	VISIT(GetElementPtrInst)
 	{
-		Module& module = *inst.getParent()->getParent()->getParent();
 		vector<Value*> indices;
 		copy(inst.idx_begin(), inst.idx_end(), back_inserter(indices));
 		
@@ -420,7 +417,7 @@ public:
 		for (unsigned i = 1; i < indices.size(); ++i)
 		{
 			Type* indexedType = GetElementPtrInst::getIndexedType(baseType, rawIndices.slice(0, i));
-			result = indexIntoElement(module, result, indexedType, indices[i]);
+			result = indexIntoElement(result, indexedType, indices[i]);
 		}
 		return ctx.unary(UnaryOperatorExpression::AddressOf, result);
 	}
