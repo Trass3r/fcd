@@ -190,7 +190,7 @@ unique_ptr<HeaderDeclarations> HeaderDeclarations::create(llvm::Module& module, 
 		{
 			// It might seem lazy to use CreateFromArgs to specify frameworks, but no one has been able to tell me how to
 			// do it without using -framework.
-			vector<string> invocationArgs = { getSelfPath(), "-x", "c" };
+			vector<string> invocationArgs = { getSelfPath(), "-x", "c++" };
 			for (const char** includePathIter = defaultFrameworkSearchPathList; *includePathIter != nullptr; ++includePathIter)
 			{
 				invocationArgs.emplace_back();
