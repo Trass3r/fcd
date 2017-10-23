@@ -489,6 +489,7 @@ namespace
 			phaseOne.add(createGVNPass());
 			phaseOne.add(createDeadStoreEliminationPass());
 			phaseOne.add(createInstructionCombiningPass());
+			phaseOne.add(createStaticDataPass());
 			phaseOne.add(createGlobalDCEPass());
 			phaseOne.run(*module);
 	

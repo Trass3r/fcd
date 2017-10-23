@@ -22,5 +22,6 @@
 #include "targetinfo.h"
 
 llvm::FunctionPass*		createRegisterPointerPromotionPass();
+llvm::ModulePass*       createStaticDataPass();
 
 #endif /* defined(fcd__passes_h) */
