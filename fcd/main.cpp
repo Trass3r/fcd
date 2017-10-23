@@ -462,40 +462,23 @@ namespace
 			// Perform early optimizations to make the module suitable for analysis
 			auto module = transl.take();
 
-			auto codesection = executable.getSectionInfo(".text");
-			auto rosection   = executable.getSectionInfo(".rodata");
-			auto rwsection   = executable.getSectionInfo(".data");
-			auto bsssection  = executable.getSectionInfo(".bss");
-
+			// insert static data as global arrays
+			Type* i64Type = IntegerType::get(llvm, 64);
+			for (StringRef name : { ".rodata", ".data", ".bss" })
 			{
-			Type* itype = IntegerType::get(llvm, 64);
-			Constant* codeVAi = ConstantInt::get(itype, codesection->vaddr);
-			auto codeVA = new GlobalVariable(*module, itype, true, GlobalVariable::PrivateLinkage, codeVAi, ".codeVA");
+				auto* section = executable.getSectionInfo(name);
+				if (!section)
+					continue;
 
-			auto rodataData = llvm::ConstantDataArray::get(llvm, rosection->data);
-			auto rodata = new GlobalVariable(*module, rodataData->getType(), true, GlobalVariable::PrivateLinkage, rodataData, ".rodata");
-			rodata->setAlignment(32);
-			rodata->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
+				Constant* vaddr = ConstantInt::get(i64Type, section->vaddr);
+				new GlobalVariable(*module, i64Type, true, GlobalVariable::ExternalLinkage, vaddr, name.substr(1) + ".vaddr");
 
-			Constant* roDataVAi = ConstantInt::get(itype, rosection->vaddr);
-			auto rodataVA = new GlobalVariable(*module, itype, true, GlobalVariable::PrivateLinkage, roDataVAi, ".rodataVA");
-			rodataVA->setAlignment(8);
-
-			auto dataData = llvm::ConstantDataArray::get(llvm, rwsection->data);
-			auto data = new GlobalVariable(*module, dataData->getType(), false, GlobalVariable::PrivateLinkage, dataData, ".data");
-			data->setAlignment(32);
-
-			Constant* dataVAi = ConstantInt::get(itype, rwsection->vaddr);
-			auto dataVA = new GlobalVariable(*module, itype, true, GlobalVariable::PrivateLinkage, dataVAi, ".dataVA");
-			dataVA->setAlignment(8);
-
-			ArrayType* bssArrayType = ArrayType::get(IntegerType::get(llvm, 8), bsssection->data.size());
-			auto bss = new GlobalVariable(*module, bssArrayType, false, GlobalVariable::PrivateLinkage, ConstantAggregateZero::get(bssArrayType), ".bss");
-			bss->setAlignment(64);
-			bss->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
-
-			Constant* bssVAi = ConstantInt::get(itype, bsssection->vaddr);
-			auto bssVA = new GlobalVariable(*module, itype, true, GlobalVariable::PrivateLinkage, bssVAi, ".bssVA");
+				bool isConstant = name == ".rodata";
+				ArrayType* arrayType = ArrayType::get(IntegerType::get(llvm, 8), section->data.size());
+				Constant* data = section->data.data() ? llvm::ConstantDataArray::get(llvm, section->data) : ConstantAggregateZero::get(arrayType);
+				auto v = new GlobalVariable(*module, arrayType, isConstant, GlobalVariable::ExternalLinkage, data, name.substr(1));
+				v->setAlignment(64);
+				v->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
 			}
 
 			legacy::PassManager phaseOne = createBasePassManager();
