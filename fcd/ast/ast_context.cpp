@@ -570,7 +570,7 @@ AstContext::AstContext(DumbAllocator& pool, Module* module)
 	trueExpr = token(getIntegerType(false, 1), "true");
 	falseExpr = token(getIntegerType(false, 1), "false");
 	undef = token(getVoid(), "__undefined");
-	null = token(getPointerTo(getVoid()), "null");
+	null = token(getPointerTo(getVoid()), "nullptr");
 	
 	// We need an LLVM context to get LLVM types, so this won't work when module is nullptr. It is only nullptr in
 	// debug scenarios, like when calling the dump method.
