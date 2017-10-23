@@ -217,7 +217,12 @@ public:
 				return ctx.token(ctx.getPointerTo(functionType), func->getName());
 			}
 		}
-		
+
+		if (auto var = dyn_cast<GlobalVariable>(&constant))
+		{
+			return ctx.token(ctx.getType(*var->getValueType()), var->getName());
+		}
+
 		if (isa<UndefValue>(constant))
 		{
 			return ctx.expressionForUndef();
@@ -410,6 +415,7 @@ public:
 		copy(inst.idx_begin(), inst.idx_end(), back_inserter(indices));
 		
 		// special case for index 0, since baseType is not a pointer type (but GEP operand 0 operates on a pointer type)
+		// TODO: skip first index if 0
 		Expression* result = ctx.subscript(valueFor(*inst.getPointerOperand()), valueFor(*indices[0]));
 		
 		Type* baseType = inst.getSourceElementType();
