@@ -7,7 +7,7 @@ if (NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 set(EXTRA_EMULATOR_FLAGS "-gline-tables-only" CACHE STRING "additional compilation flags for the emulator code")
-set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE Debug CACHE STRING "")
 set(CMAKE_CXX_STANDARD 14)
 
 find_package(LLVM 4.0 REQUIRED CONFIG)
