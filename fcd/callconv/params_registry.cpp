@@ -21,6 +21,11 @@
 #include <llvm/IR/Dominators.h>
 #include <llvm/IR/Module.h>
 #include <llvm/Support/PrettyStackTrace.h>
+#if LLVM_VERSION_MAJOR > 4
+#include <llvm/Analysis/MemorySSA.h>
+#else
+#include <llvm/Transforms/Utils/MemorySSA.h>
+#endif
 
 using namespace llvm;
 using namespace std;

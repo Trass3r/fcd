@@ -11,6 +11,11 @@
 
 #include <llvm/ADT/PostOrderIterator.h>
 #include <llvm/IR/PatternMatch.h>
+#if LLVM_VERSION_MAJOR > 4
+#include <llvm/Analysis/MemorySSA.h>
+#else
+#include <llvm/Transforms/Utils/MemorySSA.h>
+#endif
 
 using namespace llvm;
 using namespace std;

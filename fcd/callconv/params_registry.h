@@ -18,13 +18,17 @@
 #include <llvm/Analysis/AliasAnalysis.h>
 #include <llvm/IR/Function.h>
 #include <llvm/Pass.h>
-#include <llvm/Transforms/Utils/MemorySSA.h>
 
 #include <cassert>
 #include <deque>
 #include <memory>
 #include <string>
 #include <unordered_map>
+
+namespace llvm
+{
+    class MemorySSA;
+}
 
 class CallingConvention;
 class Executable;

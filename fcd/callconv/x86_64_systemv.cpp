@@ -27,7 +27,11 @@
 #include "x86_64_systemv.h"
 
 #include <llvm/IR/PatternMatch.h>
+#if LLVM_VERSION_MAJOR > 4
+#include <llvm/Analysis/MemorySSA.h>
+#else
 #include <llvm/Transforms/Utils/MemorySSA.h>
+#endif
 
 #include <unordered_map>
 

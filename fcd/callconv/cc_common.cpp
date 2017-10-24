@@ -13,6 +13,12 @@
 #include "main.h"
 #include "metadata.h"
 
+#if LLVM_VERSION_MAJOR > 4
+#include <llvm/Analysis/MemorySSA.h>
+#else
+#include <llvm/Transforms/Utils/MemorySSA.h>
+#endif
+
 #include <algorithm>
 
 using namespace llvm;

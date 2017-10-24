@@ -16,6 +16,11 @@
 #include <llvm/Analysis/CallGraph.h>
 #include <llvm/Analysis/PostDominators.h>
 #include <llvm/IR/Constants.h>
+#if LLVM_VERSION_MAJOR > 4
+#include <llvm/Analysis/MemorySSA.h>
+#else
+#include <llvm/Transforms/Utils/MemorySSA.h>
+#endif
 
 #include <unordered_map>
 #include <unordered_set>

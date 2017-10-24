@@ -13,7 +13,6 @@
 #include <llvm/Pass.h>
 #include <llvm/Analysis/AliasAnalysis.h>
 #include <llvm/Analysis/Passes.h>
-#include <llvm/Transforms/Utils/MemorySSA.h>
 
 #include "pass_argrec.h"
 #include "pass_backend.h"
