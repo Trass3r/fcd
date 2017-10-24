@@ -69,7 +69,7 @@ target_include_directories(fcd PRIVATE ${subdirs})
 target_include_directories(fcd SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS} ${PYTHON_INCLUDE_DIRS})
 target_compile_options(fcd PRIVATE --system-header-prefix=llvm/ --system-header-prefix=clang/ --system-header-prefix=clang-c/)
 target_compile_options(fcd PRIVATE -Wall -Werror=conversion -Wno-error=sign-conversion -Wshadow -Wunreachable-code -Wempty-body -Wconditional-uninitialized -Winvalid-offsetof -Wnewline-eof)
-target_compile_options(fcd PRIVATE -fno-exceptions -fno-rtti -ffunction-sections -fdata-sections)
+target_compile_options(fcd PRIVATE -fno-exceptions -fno-rtti -ffunction-sections -fdata-sections -fdiagnostics-color=always)
 
 # The Clang cmake config file is broken on binary distributions. We need a way
 # to tell if libclang was linked against the LLVM shared library.
