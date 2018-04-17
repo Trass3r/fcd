@@ -47,7 +47,7 @@ namespace
 		CC_LOOKUP(CC_X86FastCall, X86_FastCall),
 		CC_LOOKUP(CC_X86ThisCall, X86_ThisCall),
 		CC_LOOKUP(CC_X86VectorCall, X86_VectorCall),
-		CC_LOOKUP(CC_X86_64Win64, X86_64_Win64),
+	    CC_LOOKUP(CC_Win64, Win64),
 		CC_LOOKUP(CC_X86_64SysV, X86_64_SysV),
 		CC_LOOKUP(CC_AAPCS, ARM_AAPCS),
 		CC_LOOKUP(CC_AAPCS_VFP, ARM_AAPCS_VFP),
@@ -315,10 +315,10 @@ Function* HeaderDeclarations::prototypeForDeclaration(FunctionDecl& decl)
 	}
 	
 	Function* fn = Function::Create(functionType, GlobalValue::ExternalLinkage);
-	fn->addAttributes(AttributeSet::FunctionIndex, AttributeSet::get(module.getContext(), AttributeSet::FunctionIndex, attributeBuilder));
+	fn->addAttributes(llvm::AttributeList::FunctionIndex, attributeBuilder);
 	if (decl.hasAttr<RestrictAttr>())
 	{
-		fn->addAttribute(AttributeSet::ReturnIndex, Attribute::NoAlias);
+		fn->addAttribute(llvm::AttributeList::ReturnIndex, Attribute::NoAlias);
 	}
 	
 	// If we know the calling convention, apply it here

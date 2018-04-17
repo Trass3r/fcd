@@ -4,7 +4,6 @@
 #include <llvm/IR/DebugInfoMetadata.h>
 #include <llvm/IR/AssemblyAnnotationWriter.h>
 #include <llvm/IR/IntrinsicInst.h>
-#include <llvm/IR/DebugInfoMetadata.h>
 #include <llvm/IR/Module.h>
 
 static void printDebugLoc(const llvm::DebugLoc& loc, llvm::formatted_raw_ostream& s)

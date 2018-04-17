@@ -84,6 +84,8 @@ bool StaticDataPass::fixReference(Value* valueToReplace, uint64_t staticAddress,
 		if (staticAddress >= staticDataVirtualAddr + staticDataSize)
 			continue;
 
+		printf("FOUND %lu in %.*s\n", staticAddress, (int)staticDataArray->getName().size(), staticDataArray->getName().data());
+
 		LLVMContext& ctx = valueToReplace->getContext();
 		IntegerType* i64 = Type::getInt64Ty(ctx);
 		ConstantInt* zero = ConstantInt::get(i64, 0);
@@ -96,6 +98,8 @@ bool StaticDataPass::fixReference(Value* valueToReplace, uint64_t staticAddress,
 
 		if (dynamicOffset)
 		{
+			//IRBuilder<> builder((Instruction*)nullptr);
+			//builder.CreateGEP()
 			auto inst = cast<Instruction>(valueToReplace);
 			ConstantInt* elementSizeBytes = ConstantInt::get(i64, valueToReplace-> getType()->getPointerElementType()->getScalarSizeInBits() / 8);
 			dynamicOffset = BinaryOperator::CreateExactUDiv(dynamicOffset, elementSizeBytes, "", inst);
@@ -148,12 +152,22 @@ bool StaticDataPass::runOnInst(Instruction& inst)
 			auto operand = inttoptr->getOperand(0);
 			Value* dynamicOffset;
 			if (matchesAdd(operand, dynamicOffset, globalAddress))
-				return fixReference(loadFrom, globalAddress->getLimitedValue(), dynamicOffset);
+			{
+				if (fixReference(loadFrom, globalAddress->getLimitedValue(), dynamicOffset))
+				{
+					assert(operand->use_empty());
+					// TODO: just here to get a clean IR immediately
+					cast<BinaryOperator>(operand)->eraseFromParent();
+					return true;
+				}
+				return false;
+			}
 		}
 
 		if (!globalAddress)
 			return false;
 
+		// printf("found load from constant address %lu\n", globalAddress->getLimitedValue());
 		return fixReference(loadFrom, globalAddress->getLimitedValue());
 	}
 	else if (auto store = dyn_cast<StoreInst>(&inst))
@@ -175,7 +189,10 @@ bool StaticDataPass::runOnInst(Instruction& inst)
 		Value* valueOperand = store->getValueOperand();
 		ConstantInt* constant = dyn_cast<ConstantInt>(valueOperand);
 		if (constant)
+		{
+			printf("found store of constant %lu\n", constant->getLimitedValue());
 			return fixReference(valueOperand, constant->getLimitedValue());
+		}
 	}
 
 	return false;

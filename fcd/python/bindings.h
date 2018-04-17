@@ -27,6 +27,7 @@ extern PyTypeObject Py_LLVMUse_Type;
 extern PyTypeObject Py_LLVMModuleProvider_Type;
 extern PyTypeObject Py_LLVMBuilder_Type;
 extern PyTypeObject Py_LLVMValue_Type;
+extern PyTypeObject Py_LLVMMetadata_Type;
 extern PyTypeObject Py_LLVMPassRegistry_Type;
 extern PyTypeObject Py_LLVMPassManager_Type;
 extern PyTypeObject Py_LLVMModule_Type;

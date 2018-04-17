@@ -888,8 +888,8 @@ void AstBackEnd::runOnFunction(Function& fn)
 	ensureLoopsExit(*blockGraph);
 	
 	// Compute regions.
-	PreAstBasicBlockRegionTraits::DomTreeT domTree(false);
-	PreAstBasicBlockRegionTraits::PostDomTreeT postDomTree(true);
+	PreAstBasicBlockRegionTraits::DomTreeT domTree;
+	PreAstBasicBlockRegionTraits::PostDomTreeT postDomTree;
 	PreAstBasicBlockRegionTraits::DomFrontierT dominanceFrontier;
 	domTree.recalculate(*blockGraph);
 	postDomTree.recalculate(*blockGraph);

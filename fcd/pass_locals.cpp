@@ -1078,7 +1078,7 @@ namespace
 			{
 				auto allocaInsert = &*fn.getEntryBlock().getFirstInsertionPt();
 				Type* naiveType = llvmFrame->getNaiveType(*root);
-				AllocaInst* stackFrame = new AllocaInst(naiveType, "stackframe", allocaInsert);
+				AllocaInst* stackFrame = new AllocaInst(naiveType, 0, "stackframe", allocaInsert);
 				md::setStackFrame(*stackFrame);
 				for (auto object : llvmFrame->getAllObjects())
 				{

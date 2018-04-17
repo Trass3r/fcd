@@ -51,8 +51,12 @@ namespace
 						const TargetRegisterInfo* info = tinfo->registerInfo(*gep);
 						gep->setName(info->name + "_addr");
 						for (auto gepuser : gep->users())
+						{
 							if (isa<LoadInst>(gepuser))
 								gepuser->setName(info->name);
+							if (isa<BitCastInst>(gepuser))
+								gepuser->setName(info->name);
+						}
 
 						if (isa<StructType>(gep->getResultElementType()))
 						{
@@ -70,7 +74,7 @@ namespace
 			LLVMContext& ctx = gep.getContext();
 			SmallVector<Value*, 4> indices(gep.idx_begin(), gep.idx_end());
 			indices.push_back(ConstantInt::get(Type::getInt32Ty(ctx), 0));
-			GetElementPtrInst* goodGep = GetElementPtrInst::CreateInBounds(gep.getPointerOperand(), indices, "", &gep);
+			GetElementPtrInst* goodGep = GetElementPtrInst::CreateInBounds(gep.getPointerOperand(), indices, gep.getName(), &gep);
 			
 			bool allRemoved = true;
 			// We can't use replaceAllUsesWith because the type is different.

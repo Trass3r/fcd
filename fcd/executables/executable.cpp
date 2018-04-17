@@ -201,6 +201,11 @@ const SectionInfo* Executable::getSectionInfo(StringRef name) const
 	return &it->getValue();
 }
 
+const llvm::StringMap<SectionInfo>&Executable::getSections() const
+{
+	return sections;
+}
+
 vector<uint64_t> Executable::getVisibleEntryPoints() const
 {
 	vector<uint64_t> result;

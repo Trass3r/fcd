@@ -78,6 +78,9 @@ public:
 	//! returns section info if it exists or nullptr otherwise
 	const SectionInfo* getSectionInfo(llvm::StringRef name) const;
 
+	//! returns all section info
+	const llvm::StringMap<SectionInfo>& getSections() const;
+
 	virtual std::vector<uint64_t> getVisibleEntryPoints() const override final;
 	virtual const SymbolInfo* getInfo(uint64_t address) const override final;
 	const StubInfo* getStubTarget(uint64_t address) const;

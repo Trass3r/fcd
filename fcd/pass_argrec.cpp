@@ -206,7 +206,7 @@ void ArgumentRecovery::updateFunctionBody(Function& oldFunction, Function& newFu
 	Argument* oldArg0 = &*oldFunction.arg_begin();
 	Type* registerStruct = oldArg0->getType()->getPointerElementType();
 	Instruction* insertionPoint = &*newFunction.begin()->begin();
-	AllocaInst* newRegisters = new AllocaInst(registerStruct, "registers", insertionPoint);
+	AllocaInst* newRegisters = new AllocaInst(registerStruct, 0, "registers", insertionPoint);
 	md::setRegisterStruct(*newRegisters);
 	oldArg0->replaceAllUsesWith(newRegisters);
 	registerPtr[&newFunction] = newRegisters;

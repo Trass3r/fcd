@@ -67,7 +67,7 @@ struct ValueInformation
 
 class CallInformation
 {
-	typedef std::deque<ValueInformation> ContainerType;
+	using ContainerType = std::vector<ValueInformation>;
 	
 public:
 	// The stage of call information analysis is useful only when a recursive analysis
@@ -171,6 +171,13 @@ public:
 		assert(iter <= values.begin() + returnBegin);
 		values.emplace(iter, std::forward<T>(params)...);
 		returnBegin++;
+	}
+
+	template<typename... T>
+	void insertParameter(size_t idx, T&&... params)
+	{
+		values.emplace(values.begin() + idx + 1, std::forward<T>(params)...);
+		++returnBegin;
 	}
 	
 	template<typename... T>

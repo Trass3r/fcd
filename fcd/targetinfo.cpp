@@ -67,6 +67,7 @@ Instruction* TargetInfo::getRegister(llvm::Value *registerStruct, const TargetRe
 	}
 	
 	Instruction* result = GetElementPtrInst::CreateInBounds(registerStruct, indices, selected->name, &insertionPoint);
+	result->dump();
 	if (info.subOffset != 0)
 	{
 		auto intptrTy = dl->getIntPtrType(ctx);
@@ -130,6 +131,18 @@ const TargetRegisterInfo* TargetInfo::registerInfo(size_t offset, size_t size) c
 		if (info.offset > offset)
 		{
 			break;
+		}
+	}
+	return nullptr;
+}
+
+const TargetRegisterInfo* TargetInfo::registerInfo(llvm::StringRef name) const
+{
+	for (const auto& info : targetRegisterInfo())
+	{
+		if (info.name == name)
+		{
+			return &info;
 		}
 	}
 	return nullptr;

@@ -86,7 +86,7 @@ endif()
 
 # Ubuntu does not package ClangConfig
 target_link_libraries(fcd "-L${LLVM_LIBRARY_DIR}" clangIndex clangCodeGen clangFormat clangToolingCore clangRewrite clangFrontend clangDriver clangParse clangSerialization clangSema clangEdit clangAnalysis clangAST clangLex clangBasic)
-target_link_libraries(fcd ${llvm_libs} capstone clang dl -Wl,--gc-sections)
+target_link_libraries(fcd ${llvm_libs} capstone clang dl -Wl,--gc-sections) # -fsanitize=address)
 
 set_source_files_properties(${pythonbindingsfile} PROPERTIES COMPILE_FLAGS -w)
 target_link_libraries(fcd ${PYTHON_LIBRARIES})

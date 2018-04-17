@@ -32,9 +32,9 @@ struct PreAstBasicBlock;
 
 struct PreAstBasicBlockEdge
 {
-	NOT_NULL(PreAstBasicBlock) from;
-	NOT_NULL(PreAstBasicBlock) to;
-	NOT_NULL(Expression) edgeCondition;
+	PreAstBasicBlock* from;
+	PreAstBasicBlock* to;
+	Expression* edgeCondition;
 	
 	PreAstBasicBlockEdge(PreAstBasicBlock& from, PreAstBasicBlock& to, Expression& edgeCondition)
 	: from(&from), to(&to), edgeCondition(&edgeCondition)
@@ -46,8 +46,8 @@ struct PreAstBasicBlockEdge
 
 struct PreAstBasicBlock
 {
-	llvm::SmallVector<NOT_NULL(PreAstBasicBlockEdge), 8> predecessors;
-	llvm::SmallVector<NOT_NULL(PreAstBasicBlockEdge), 2> successors;
+	llvm::SmallVector<PreAstBasicBlockEdge*, 8> predecessors;
+	llvm::SmallVector<PreAstBasicBlockEdge*, 2> successors;
 	
 	llvm::BasicBlock* block;
 	StatementReference blockStatement;
@@ -121,14 +121,14 @@ struct PreAstBasicBlockRegionTraits
 {
 	typedef PreAstContext FuncT;
 	typedef PreAstBasicBlock BlockT;
-	typedef llvm::DominatorTreeBase<PreAstBasicBlock> DomTreeT;
+	typedef llvm::DominatorTreeBase<PreAstBasicBlock, false> DomTreeT;
 	typedef llvm::DomTreeNodeBase<PreAstBasicBlock> DomTreeNodeT;
 	typedef llvm::ForwardDominanceFrontierBase<PreAstBasicBlock> DomFrontierT;
-	typedef llvm::DominatorTreeBase<PreAstBasicBlock> PostDomTreeT;
+	typedef llvm::DominatorTreeBase<PreAstBasicBlock, true> PostDomTreeT;
 };
 
 template<typename Iterator, typename Transformer>
-struct PreAstBasicBlockIterator : public std::iterator<std::input_iterator_tag, NOT_NULL(PreAstBasicBlock)>
+struct PreAstBasicBlockIterator final : public std::iterator<std::input_iterator_tag, NOT_NULL(PreAstBasicBlock)>
 {
 	typename std::remove_reference<Iterator>::type base;
 	Transformer transformer;

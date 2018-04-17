@@ -88,6 +88,7 @@ public:
 	const TargetRegisterInfo* registerInfo(const llvm::Value& value) const;
 	const TargetRegisterInfo* registerInfo(const llvm::GetElementPtrInst& value) const;
 	const TargetRegisterInfo* registerInfo(size_t offset, size_t size) const;
+	const TargetRegisterInfo* registerInfo(llvm::StringRef name) const;
 	const TargetRegisterInfo& largestOverlappingRegister(const TargetRegisterInfo& overlapped) const;
 	
 	inline void setStackPointer(const TargetRegisterInfo& targetReg)

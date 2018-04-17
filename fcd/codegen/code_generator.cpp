@@ -78,7 +78,7 @@ namespace
 			
 			Module* module = location.getParent()->getParent()->getParent();
 			FunctionType* segmentFuncType = FunctionType::get(loadType, { pointer.getType() }, false);
-			Function* segmentFunc = cast<Function>(module->getOrInsertFunction(segmentFuncName, segmentFuncType, AttributeSet()));
+			Function* segmentFunc = cast<Function>(module->getOrInsertFunction(segmentFuncName, segmentFuncType, AttributeList()));
 			return CallInst::Create(segmentFunc, { &pointer }, "", &location);
 		}
 		
@@ -248,7 +248,7 @@ namespace
 					ConstantInt::get(int64Ty, cs.operands[i].mem.disp),
 				};
 				Constant* opMem = ConstantStruct::get(x86OpMem, structFields);
-				Constant* wrapper = ConstantStruct::get(x86OpMemWrapper, opMem, nullptr);
+				Constant* wrapper = ConstantStruct::get(x86OpMemWrapper, opMem);
 				
 				structFields = {
 					ConstantInt::get(int32Ty, cs.operands[i].type),

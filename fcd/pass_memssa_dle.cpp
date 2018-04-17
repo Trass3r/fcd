@@ -13,6 +13,7 @@
 #include <llvm/IR/PatternMatch.h>
 #if LLVM_VERSION_MAJOR > 4
 #include <llvm/Analysis/MemorySSA.h>
+#include <llvm/Analysis/MemorySSAUpdater.h>
 #else
 #include <llvm/Transforms/Utils/MemorySSA.h>
 #endif
@@ -82,7 +83,8 @@ namespace
 				auto access = mssa.getMemoryAccess(deletedLoad);
 				assert(access != nullptr);
 				deletedLoad->eraseFromParent();
-				mssa.removeMemoryAccess(access);
+				MemorySSAUpdater updater(&mssa);
+				updater.removeMemoryAccess(access);
 			}
 			
 			return changed;

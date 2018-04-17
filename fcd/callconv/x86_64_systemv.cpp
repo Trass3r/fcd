@@ -81,7 +81,7 @@ namespace
 				regIter++;
 				bitSize -= min<unsigned>(bitSize, 64);
 			}
-			
+
 			if (spOffset != nullptr)
 			{
 				while (bitSize != 0)
@@ -97,8 +97,105 @@ namespace
 		return type == Type::getVoidTy(type->getContext());
 	}
 	
+
+	/*
+	int publicfoo(this, uint64_t a, uint64_t b, uint64_t c)
+		{
+			int d = foo(b, a);
+			return d + 5;
+		}
+	private:
+		virtual int foo(this, uint64_t a, uint64_t b) { return 0; }
+		int a;
+	};
+
+	int main(int argc, const char* argv[])
+	{
+		auto b = std::make_unique<Base>();
+		return 3 + b->publicfoo(1,2,3);
+	}
+
+	00000000004003c2 <_ZN4Base9publicfooEmmm>:
+	  4003c2:	50                   	push   rax
+	  4003c3:	48 89 f0             	mov    rax,rsi
+	  4003c6:	48 8b 0f             	mov    rcx,QWORD PTR [rdi]
+	  4003c9:	48 89 d6             	mov    rsi,rdx
+	  4003cc:	48 89 c2             	mov    rdx,rax
+	  4003cf:	ff 51 10             	call   QWORD PTR [rcx+0x10]
+	  4003d2:	83 c0 05             	add    eax,0x5
+	  4003d5:	59                   	pop    rcx
+	  4003d6:	c3                   	ret
+
+	  rdi-rsi-rdx-rcx-r8-r9
+
+	0000000000400360 <main>:
+	  400360:	55                   	push   rbp
+	  400361:	53                   	push   rbx
+	  400362:	50                   	push   rax
+	  400363:	bf 10 00 00 00       	mov    edi,0x10
+	  400368:	e8 e3 ff ff ff       	call   400350 <_Znwm@plt>
+	  40036d:	48 89 c3             	mov    rbx,rax
+	  400370:	31 c0                	xor    eax,eax
+	  400372:	48 89 43 08          	mov    QWORD PTR [rbx+0x8],rax
+	  400376:	48 89 03             	mov    QWORD PTR [rbx],rax
+	  400379:	48 c7 03 f8 03 40 00 	mov    QWORD PTR [rbx],0x4003f8
+	  400380:	be 01 00 00 00       	mov    esi,0x1
+	  400385:	ba 02 00 00 00       	mov    edx,0x2
+	  40038a:	b9 03 00 00 00       	mov    ecx,0x3
+	  40038f:	48 89 df             	mov    rdi,rbx
+	  400392:	e8 2b 00 00 00       	call   4003c2 <_ZN4Base9publicfooEmmm>
+	  400397:	89 c5                	mov    ebp,eax
+	  400399:	83 c5 03             	add    ebp,0x3
+	  40039c:	48 8b 03             	mov    rax,QWORD PTR [rbx]
+	  40039f:	48 89 df             	mov    rdi,rbx
+	  4003a2:	ff 50 08             	call   QWORD PTR [rax+0x8]
+	  4003a5:	89 e8                	mov    eax,ebp
+	  4003a7:	48 83 c4 08          	add    rsp,0x8
+	  4003ab:	5b                   	pop    rbx
+	  4003ac:	5d                   	pop    rbp
+	  4003ad:	c3                   	ret
+
+	 * define i64 @_ZN4Base9publicfooEmmm(i64, i64, i64, i64) !fcd.vaddr !39 !fcd.recoverable !3 {
+	  %5 = inttoptr i64 %1 to i64*, !dbg !40          ; [#uses=1 type=i64*] [debug line = x86_read_reg:55:15@x86_get_effective_address:188:21@x86_read_mem:196:17@x86_read_source_operand:221:11@x86_move_zero_extend:375:24@x86_mov:1137:2]
+	  %6 = load i64, i64* %5, align 4                 ; [#uses=2 type=i64]
+	  %7 = add i64 %6, 16, !dbg !53                   ; [#uses=1 type=i64] [debug line = x86_get_effective_address:188:18@x86_read_mem:196:17@x86_read_source_operand:221:11@x86_call:592:20]
+	  %8 = inttoptr i64 %7 to i64 (i64, i64, i64)**   ; [#uses=1 type=i64 (i64, i64, i64)**]
+	  %9 = load i64 (i64, i64, i64)*, i64 (i64, i64, i64)** %8, align 4 ; [#uses=1 type=i64 (i64, i64, i64)*]
+	  %10 = call i64 %9(i64 %3, i64 %2, i64 %6)       ; [#uses=1 type=i64]
+	  %11 = add i64 %10, 5, !dbg !62                  ; [#uses=1 type=i64] [debug line = x86_add_flags<int>:274:15@x86_add:288:20@x86_add:568:20]
+	  %12 = and i64 %11, 4294967295, !dbg !69         ; [#uses=1 type=i64] [debug line = x86_add:288:20@x86_add:568:20]
+	  ret i64 %12
+	}
+
+	define i32 @main(i32, i8**) !fcd.funver !70 {
+	  %3 = call i8* @_Znwm(i64 16)                    ; [#uses=2 type=i8*]
+	  %4 = ptrtoint i8* %3 to i64                     ; [#uses=3 type=i64]
+	  %5 = add i64 %4, 8, !dbg !71                    ; [#uses=1 type=i64] [debug line = x86_get_effective_address:188:18@x86_write_mem:203:17@x86_write_destination_operand:257:4@x86_move_zero_extend:376:2@x86_mov:1137:2]
+	  %6 = inttoptr i64 %5 to i64*                    ; [#uses=1 type=i64*]
+	  store i64 0, i64* %6, align 4, !fcd.prgmem !3
+	  %7 = bitcast i8* %3 to i64*, !dbg !82           ; [#uses=2 type=i64*] [debug line = x86_read_reg:55:15@x86_get_effective_address:188:21@x86_write_mem:203:17@x86_write_destination_operand:257:4@x86_move_zero_extend:376:2@x86_mov:1137:2]
+	  store i64 ptrtoint (i8* getelementptr inbounds ([40 x i8], [40 x i8]* @rodata, i64 0, i64 16) to i64), i64* %7, align 4, !fcd.prgmem !3
+	  %8 = call i64 @_ZN4Base9publicfooEmmm(i64 4195223, i64 %4, i64 1, i64 2) ; [#uses=1 type=i64]
+	  %9 = trunc i64 %8 to i32, !dbg !95              ; [#uses=1 type=i32] [debug line = x86_read_reg:61:15@x86_read_reg:82:9@x86_read_source_operand:217:11@x86_move_zero_extend:375:24@x86_mov:1137:2]
+	  %10 = add i32 %9, 3, !dbg !106                  ; [#uses=1 type=i32] [debug line = x86_add_flags<int>:274:15@x86_add:288:20@x86_add:568:20]
+	  %11 = load i64, i64* %7, align 4                ; [#uses=1 type=i64]
+	  %12 = add i64 %11, 8, !dbg !113                 ; [#uses=1 type=i64] [debug line = x86_get_effective_address:188:18@x86_read_mem:196:17@x86_read_source_operand:221:11@x86_call:592:20]
+	  %13 = inttoptr i64 %12 to void (i64)**          ; [#uses=1 type=void (i64)**]
+	  %14 = load void (i64)*, void (i64)** %13, align 4 ; [#uses=1 type=void (i64)*]
+	  call void %14(i64 %4)
+	  ret i32 %10
+	}
+
+	uint64_t _ZN4Base9publicfooEmmm(uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3)
+	{
+		return (*(uint64_t(**)(uint64_t, uint64_t, uint64_t))(*(uint64_t*)arg1 + 16))(arg3, arg2, *(uint64_t*)arg1) + 5 & 0xffffffff;
+	}
+	call i64 @_ZN4Base9publicfooEmmm(i64 4195223, i64 %4, i64 1, i64 2)
+
+	*/
 	void identifyParameterCandidates(TargetInfo& target, MemorySSA& mssa, MemoryAccess* access, CallInformation& fillOut)
 	{
+
 		// Look for values that are written but not used by the caller (parameters).
 		// MemorySSA chains memory uses and memory defs. Walk back from the call until the previous call, or to liveOnEntry.
 		// Registers in the parameter set that are written to before the function call are parameters for sure.
@@ -106,12 +203,13 @@ namespace
 		// read again before we can determine with certainty that they're parameters.
 		while (!mssa.isLiveOnEntryDef(access))
 		{
+			access ->print(llvm::outs());
 			if (isa<MemoryPhi>(access))
 			{
 				// too hard, give up
 				break;
 			}
-			
+
 			auto useOrDef = cast<MemoryUseOrDef>(access);
 			Instruction* memoryInst = useOrDef->getMemoryInst();
 			if (isa<CallInst>(memoryInst))
@@ -134,6 +232,11 @@ namespace
 						if (isParameterRegister(*info))
 						{
 							auto range = fillOut.parameters();
+							const char** regName = std::find(begin(parameterRegisters), end(parameterRegisters), info->name);
+							auto paramIdx = regName - begin(parameterRegisters);
+
+							const TargetRegisterInfo* info2 = target.registerInfo(*regName);
+
 							auto position = lower_bound(range.begin(), range.end(), info, [](const ValueInformation& that, const TargetRegisterInfo* i)
 							{
 								if (that.type == ValueInformation::IntegerRegister)
@@ -256,6 +359,7 @@ const char* CallingConvention_x86_64_systemv::getName() const
 	return name;
 }
 
+// this one is only called from hackhack function
 bool CallingConvention_x86_64_systemv::analyzeFunction(ParameterRegistry &registry, CallInformation &callInfo, Function &function)
 {
 	// TODO: Look at called functions to find hidden parameters/return values
@@ -413,6 +517,71 @@ bool CallingConvention_x86_64_systemv::analyzeFunctionType(ParameterRegistry& re
 	return true;
 }
 
+
+#include <llvm/IR/AssemblyAnnotationWriter.h>
+#include <llvm/Support/FormattedStream.h>
+
+#include <llvm/IR/DebugInfoMetadata.h>
+static void printDebugLoc(const llvm::DebugLoc& loc, llvm::formatted_raw_ostream& s)
+{
+	// prepend function name
+	auto* scope = llvm::cast<llvm::DIScope>(loc.getScope());
+	s << scope->getName();
+	s << ':' << loc.getLine() << ':' << loc.getCol();
+	if (llvm::DILocation* inlAt = loc.getInlinedAt())
+	{
+		s << '@';
+		printDebugLoc(inlAt, s);
+	}
+}
+
+class MemorySSAAnnotatedWriter final : public llvm::AssemblyAnnotationWriter
+{
+   friend class llvm::MemorySSA;
+   const MemorySSA *MSSA;
+
+ public:
+   MemorySSAAnnotatedWriter(const MemorySSA *M) : MSSA(M) {}
+
+    void emitBasicBlockStartAnnot(const BasicBlock *BB, formatted_raw_ostream &OS) override
+	{
+	 if (MemoryAccess *MA = MSSA->getMemoryAccess(BB))
+		OS << "; " << *MA << "\n";
+	}
+
+	void emitInstructionAnnot(const Instruction *I, formatted_raw_ostream &OS) override
+	{
+	 if (MemoryAccess *MA = MSSA->getMemoryAccess(I))
+		OS << "; " << *MA << '*' << MA->getNumUses() << '\n';
+	}
+
+   void printInfoComment(const llvm::Value& v, llvm::formatted_raw_ostream& s) override
+   {
+	   bool padding = false;
+	   if (!v.getType()->isVoidTy())
+	   {
+		   s.PadToColumn(50);
+		   padding = true;
+		   s << "; [#uses=" << v.getNumUses() << " type=" << *v.getType() << ']';
+	   }
+	   if (auto inst = llvm::dyn_cast<llvm::Instruction>(&v))
+	   {
+		   if (const llvm::DebugLoc& loc = inst->getDebugLoc())
+		   {
+			   if (!padding)
+			   {
+				   s.PadToColumn(50);
+				   padding = true;
+				   s << ';';
+			   }
+			   s << " [debug line = ";
+			   printDebugLoc(loc, s);
+			   s << ']';
+		   }
+	   }
+   }
+ };
+
 bool CallingConvention_x86_64_systemv::analyzeCallSite(ParameterRegistry &registry, CallInformation &fillOut, CallSite cs)
 {
 	fillOut.clear();
@@ -422,7 +591,10 @@ bool CallingConvention_x86_64_systemv::analyzeCallSite(ParameterRegistry &regist
 	Function& caller = *inst.getParent()->getParent();
 	MemorySSA& mssa = *registry.getMemorySSA(caller);
 	MemoryDef* thisDef = cast<MemoryDef>(mssa.getMemoryAccess(&inst));
-	
+
+	MemorySSAAnnotatedWriter annotator(&mssa);
+	caller.print(llvm::outs(), &annotator);
+
 	identifyParameterCandidates(targetInfo, mssa, thisDef->getDefiningAccess(), fillOut);
 	identifyReturnCandidates(targetInfo, mssa, thisDef, fillOut);
 	return true;

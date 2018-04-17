@@ -140,7 +140,7 @@ namespace
 		{
 			if (auto call = dyn_cast<CallInst>(use.getUser()))
 			{
-				unique_ptr<Instruction> eraseIfNecessary;
+				unique_value eraseIfNecessary;
 				Value* operand = call->getOperand(stringArgumentIndex);
 				if (auto constant = dyn_cast<ConstantExpr>(operand))
 				{
@@ -512,7 +512,7 @@ namespace
 					if (auto load = dyn_cast<LoadInst>(prev->getOperand(2)))
 					if (auto constantExpr = dyn_cast<ConstantExpr>(load->getPointerOperand()))
 					{
-						unique_ptr<Instruction> inst(constantExpr->getAsInstruction());
+						unique_value inst(constantExpr->getAsInstruction());
 						if (auto int2ptr = dyn_cast<IntToPtrInst>(inst.get()))
 						{
 							auto value = cast<ConstantInt>(int2ptr->getOperand(0));
@@ -602,9 +602,9 @@ namespace
 		{
 			// Default passes
 			vector<string> passNames = {
-				"globaldce",
-				"fixindirects",
-				"argrec",
+			    "globaldce",
+			    "fixindirects",
+			    "argrec",/*
 				"sroa",
 				"intnarrowing",
 				"signext",
@@ -629,7 +629,7 @@ namespace
 				"sroa",
 				"instcombine",
 				"globaldce",
-				"simplifycfg",
+				"simplifycfg", */
 			};
 			
 			if (customPassPipeline == "default")
@@ -778,7 +778,7 @@ int main(int argc, char** argv)
 	if (verifyModule(*module, &errs()))
 	{
 		// errors!
-		return 1;
+		printf("errors in the llvm module!\n");
 	}
 #endif
 
@@ -793,10 +793,10 @@ int main(int argc, char** argv)
 	{
 		if (!mainObj.optimizeAndTransformModule(*module, errs(), executable.get()))
 		{
-			return 1;
+			// return 1;
 		}
 	}
-	
+
 	if (moduleOutValue() > 1)
 	{
 		dumpAnnotatedModule(*module);
